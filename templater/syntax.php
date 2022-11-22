@@ -2,20 +2,29 @@
 /**
  * Templater Plugin: Based from the include plugin, like MediaWiki's template
  * Usage:
- * {{template>page}} for "page" in same namespace
- * {{template>:page}} for "page" in top namespace
- * {{template>namespace:page}} for "page" in namespace "namespace"
- * {{template>.namespace:page}} for "page" in subnamespace "namespace"
- * {{template>page#section}} for a section of "page"
+ *    {{template>page}} for "page" in same namespace
+ *    {{template>:page}} for "page" in top namespace
+ *    {{template>namespace:page}} for "page" in namespace "namespace"
+ *    {{template>.namespace:page}} for "page" in subnamespace "namespace"
+ *    {{template>page#section}} for a section of "page"
  *
- * Replacers are handled in a simple key/value pair method.
- * {{template>page|key=val|key2=val|key3=val}}
+ * Replacers are handled in a simple key/value pair method:
+ *    {{template>page|key=val|key2=val|key3=val}}
  *
- * Templates are wiki pages, with replacers being delimited like
- * @key1@ @key2@ @key3@
+ * Templates are wiki pages, with replacers being delimited like:
+ *    @key1@ @key2@ @key3@
+ *
  * @license    GPL 2 (http://www.gnu.org/licenses/gpl.html)
- * @author     Jonathan arkell <jonnay@jonnay.net> based on code by Esther Brunner <esther@kaffeehaus.ch> updated by Vincent de Lau <vincent@delau.nl> with bugfix from Ximin Luo <xl269@cam.ac.uk>
- * @version             0.3.1
+ * @author     Jonathan Arkell <jonnay@jonnay.net>
+ *                based on code by Esther Brunner <esther@kaffeehaus.ch>
+ * @updaters   Vincent de Lau <vincent@delau.nl>
+ *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
+ *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
+ *                with one bugfix from jack126guy <halfgray7e@gmail.com>
+ * @version    0.4 (2022-11-21)
+ *
+ * VERSION 0.3.1 DOWNLOAD:
+ * https://web.archive.org/web/20180624211727/https://docs.blackfin.uclinux.org/lib/plugins/templater/templater.tar.gz
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -35,9 +44,9 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	 */
 	function getInfo() {
 		return array(
-			'author' => 'Jonathan Arkell (updated by Vincent de Lau)',
+			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
 			'email'  => 'jonnay@jonnay.net',
-			'date'   => '2009-03-21',
+			'date'   => '2022-11-21',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
@@ -45,7 +54,6 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	}
 
 	/**
-
 	 * What kind of syntax are we?
 	 */
 	function getType() {
@@ -80,7 +88,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	/**
 	 * Handle the match
 	 */
-	function handle($match, $state, $pos, &$handler) {
+	function handle($match, $state, $pos, Doku_Handler $handler) {
 		global $ID;
 
 		$match = substr($match, 11, -2);                        // strip markup
@@ -106,7 +114,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	 * Create output
 	 * This is a refactoring candidate. Needs to be a little clearer.
 	 */
-	function render($mode, &$renderer, $data) {
+	function render($mode, Doku_Renderer $renderer, $data) {
 		if ($mode != 'xhtml')
 			return false;
 
@@ -141,7 +149,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		// replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
 		$left_overs = '/'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'/';
 
-		$def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
+		if(!empty($data[1]['keys'])) $def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
 		$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
 
 		$rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
@@ -160,7 +168,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		// remove toc, section edit buttons and category tags
 		$patterns = array('!<div class="toc">.*?(</div>\n</div>)!s',
-		                  '#<!-- SECTION \[(\d*-\d*)\] -->#e',
+		                  '#<!-- SECTION \[(\d*-\d*)\] -->#',
 		                  '!<div class="category">.*?</div>!s');
 		$replace  = array('', '', '');
 		$text = preg_replace($patterns, $replace, $text);
@@ -218,7 +226,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 				continue;
 
 			// relative subnamespace
-			if ($instr[$i][1][0]{0} == '.') {
+			if ($instr[$i][1][0][0] == '.') {
 				$instr[$i][1][0] = $iNS.':'.substr($instr[$i][1][0], 1);
 
 			// relative link
@@ -257,7 +265,4 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return $r;
 	}
 }
-
-//Setup VIM: ex: et ts=4 enc=utf-8 :
-
 ?>
