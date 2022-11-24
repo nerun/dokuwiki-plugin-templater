@@ -21,10 +21,7 @@
  *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
  *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
  *                with one bugfix from jack126guy <halfgray7e@gmail.com>
- * @version    0.4 (2022-11-21)
- *
- * VERSION 0.3.1 DOWNLOAD:
- * https://web.archive.org/web/20180624211727/https://docs.blackfin.uclinux.org/lib/plugins/templater/templater.tar.gz
+ * @version    0.5 (2022-11-24)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -46,7 +43,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
 			'email'  => 'jonnay@jonnay.net',
-			'date'   => '2022-11-21',
+			'date'   => '2022-11-24',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
@@ -104,8 +101,17 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		// check for perrmission
 		if (auth_quickaclcheck($wikipage[0]) < 1)
 			return false;
-
-		return array($wikipage[0], $replacers, cleanID($wikipage[1]));
+		
+		// $wikipage[1] is the header of a template enclosed within a section {{template>page#section}}
+		// Not all template calls will be {{template>page#section}}, some will be {{template>page}}
+		// It fix "Undefined array key 1" warning
+		if (array_key_exists(1, $wikipage)) {
+			$section = cleanID($wikipage[1]);
+		} else {
+			$section = "";
+		}
+		
+		return array($wikipage[0], $replacers, $section);
 	}
 
 	private static $pagestack = array(); // keep track of recursing template renderings
@@ -144,15 +150,18 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		// Get the raw file, and parse it into its instructions. This could be cached... maybe.
 		$rawFile = io_readfile($file);
-		$rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
+		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
+			$rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
+		}
 
 		// replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
 		$left_overs = '/'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'/';
 
-		if(!empty($data[1]['keys'])) $def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
-		$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
-
-		$rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
+		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
+			$def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
+			$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
+			$rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
+		}
 
 		$instr = p_get_instructions($rawFile);
 
@@ -162,14 +171,21 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		// correct relative internal links and media
 		$instr = $this->_correctRelNS($instr, $data[0]);
-
+		
+		// doesn't show the heading for each template if {{template>page#section}} not {{template>page}}
+		if (array_key_exists(0, $instr[0][1])) {
+			if ($instr[0][1][0] == $data[2]) {
+				$instr[0][1][0] = "";
+			}
+		}
+		
 		// render the instructructions on the fly
 		$text = p_render('xhtml', $instr, $info);
 
 		// remove toc, section edit buttons and category tags
 		$patterns = array('!<div class="toc">.*?(</div>\n</div>)!s',
-		                  '#<!-- SECTION \[(\d*-\d*)\] -->#',
-		                  '!<div class="category">.*?</div>!s');
+						  '#<!-- SECTION \[(\d*-\d*)\] -->#',
+						  '!<div class="category">.*?</div>!s');
 		$replace  = array('', '', '');
 		$text = preg_replace($patterns, $replace, $text);
 
@@ -198,8 +214,11 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 					$i[] = $instruction;
 
 				// next header of the same level -> exit
-				} else if ($instruction[1][1] == $level)
-					return $i;
+				} else if (isset($level)) {
+					if ($instruction[1][1] == $level) {
+						return $i;
+					}
+				}
 
 			// add instructions from our section
 			} else if (isset($level))
@@ -234,7 +253,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 				$instr[$i][1][0] = $iNS.':'.$instr[$i][1][0];
 			}
 		}
-
+		
 		return $instr;
 	}
 
