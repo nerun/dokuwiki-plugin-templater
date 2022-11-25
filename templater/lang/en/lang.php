@@ -1,11 +1,12 @@
 <?php
 /**
- * English language file for template plugin
+ * English language file for templater plugin
  *
  * @author Daniel Dias Rodrigues <danieldiasr@gmail.com>
  */
-$lang['template_not_found'] = 'Template "%1$s" not found. ';
-$lang['click_create'] = '[Click here to create it]';
-$lang['click_edit'] = '[Click here to edit it]';
-$lang['stopped_recursion'] = 'Processing of template "%1$s" stopped due to recursion. ';
-$lang['no_permissions_view'] = '<div class="template"> No permissions to view the template </div>';
+$lang['template'] = '— Template ';
+$lang['not_found'] = ' not found.';
+$lang['processing_template'] = '— Processing of template ';
+$lang['stopped_recursion'] = ' stopped due to recursion.';
+$lang['no_permissions_view'] = '<div class="templater"> No permissions to view the template </div>';
+$lang['no_such_section'] = '<div class="templater">— There\'s no such section "%1$s" in the page ';

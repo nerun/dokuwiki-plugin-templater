@@ -21,7 +21,7 @@
  *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
  *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
  *                with one bugfix from jack126guy <halfgray7e@gmail.com>
- * @version    0.5.1 (2022-11-25)
+ * @version    0.5.2 (2022-11-25a)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -43,7 +43,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
 			'email'  => 'jonnay@jonnay.net',
-			'date'   => '2022-11-25',
+			'date'   => '2022-11-25a',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
@@ -134,16 +134,18 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		$file = wikiFN($data[0]);
 		if (!@file_exists($file)) {
 			$renderer->doc .= '<div class="templater">';
-			$renderer->doc .= sprintf($this->getLang('template_not_found'), $data[0]);
-			$renderer->internalLink($data[0], $this->getLang('click_create'));
-			$renderer->doc .= '</div>';
+			$renderer->doc .= $this->getLang('template');
+			$renderer->internalLink($data[0]);
+			$renderer->doc .= $this->getLang('not_found');
+			$renderer->doc .= '<br/><br/></div>';
 			$renderer->info['cache'] = FALSE;
 			return true;
 		} else if (array_search($data[0], self::$pagestack) !== false) {
 			$renderer->doc .= '<div class="templater">';
-			$renderer->doc .= sprintf($this->getLang('stopped_recursion'), $data[0]);
-			$renderer->internalLink($data[0], $this->getLang('click_edit'));
-			$renderer->doc .= '</div>';
+			$renderer->doc .= $this->getLang('processing_template');
+			$renderer->internalLink($data[0]);
+			$renderer->doc .= $this->getLang('stopped_recursion');
+			$renderer->doc .= '<br/><br/></div>';
 			return true;
 		}
 		self::$pagestack[] = $data[0]; // push this onto the stack
@@ -166,8 +168,15 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		$instr = p_get_instructions($rawFile);
 
 		// filter section if given
-		if ($data[2])
-			$instr = $this->_getSection($data[2], $instr);
+		if ($data[2]) {
+			$getSection[] = $this->_getSection($data[2], $instr);
+			$instr = $getSection[0][0];
+			if(!is_null($getSection[0][1])) {
+			    $renderer->doc .= sprintf($getSection[0][1], $data[2]);
+			    $renderer->internalLink($data[0]);
+			    $renderer->doc .= '.<br/><br/></div>';
+			}
+		}
 
 		// correct relative internal links and media
 		$instr = $this->_correctRelNS($instr, $data[0]);
@@ -228,8 +237,14 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		// Fix for when page#section doesn't exist
 		if(!isset($i)) {
 			$i[] = $instruction;
-		} 
-		return $i;
+			$no_section = $this->getLang('no_such_section');
+		}  else {
+		    $no_section = null;
+		}
+		
+		$array_i_nosection = array($i,$no_section);
+		
+		return $array_i_nosection;
 	}
 
 	/**

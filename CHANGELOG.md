@@ -1,5 +1,10 @@
 # CHANGELOG
 
+2022-11-25a v0.5.2
+* Better fix for `{{template>page#section}}` doesn't exist with error message
+* Updated error messages to look better
+* Updated english and brazilian portuguese translations
+
 2022-11-25 v0.5.1
 * Internationalization: added lang/en and lang/pt-br
 * Bug fix for when `{{template>page#section}}` doesn't exist
