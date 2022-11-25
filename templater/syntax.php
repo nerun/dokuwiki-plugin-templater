@@ -21,7 +21,7 @@
  *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
  *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
  *                with one bugfix from jack126guy <halfgray7e@gmail.com>
- * @version    0.5 (2022-11-24)
+ * @version    0.5.1 (2022-11-25)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -43,7 +43,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
 			'email'  => 'jonnay@jonnay.net',
-			'date'   => '2022-11-24',
+			'date'   => '2022-11-25',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
@@ -126,7 +126,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		if ($data[0] === false) {
 			// False means no permissions
-			$renderer->doc .= '<div class="template"> No permissions to view the template </div>';
+			$renderer->doc .= $this->getLang('no_permissions_view');
 			$renderer->info['cache'] = FALSE;
 			return true;
 		}
@@ -134,15 +134,15 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		$file = wikiFN($data[0]);
 		if (!@file_exists($file)) {
 			$renderer->doc .= '<div class="templater">';
-			$renderer->doc .= "Template {$data[0]} not found. ";
-			$renderer->internalLink($data[0], '[Click here to create it]');
+			$renderer->doc .= sprintf($this->getLang('template_not_found'), $data[0]);
+			$renderer->internalLink($data[0], $this->getLang('click_create'));
 			$renderer->doc .= '</div>';
 			$renderer->info['cache'] = FALSE;
 			return true;
 		} else if (array_search($data[0], self::$pagestack) !== false) {
 			$renderer->doc .= '<div class="templater">';
-			$renderer->doc .= "Processing of template {$data[0]} stopped due to recursion. ";
-			$renderer->internalLink($data[0], '[Click here to edit it]');
+			$renderer->doc .= sprintf($this->getLang('stopped_recursion'), $data[0]);
+			$renderer->internalLink($data[0], $this->getLang('click_edit'));
 			$renderer->doc .= '</div>';
 			return true;
 		}
@@ -221,9 +221,14 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 				}
 
 			// add instructions from our section
-			} else if (isset($level))
+			} else if (isset($level)) {
 				$i[] = $instruction;
+			} 
 		}
+		// Fix for when page#section doesn't exist
+		if(!isset($i)) {
+			$i[] = $instruction;
+		} 
 		return $i;
 	}
 

@@ -1,8 +1,12 @@
 # CHANGELOG
 
+2022-11-25 v0.5.1
+* Internationalization: added lang/en and lang/pt-br
+* Bug fix for when `{{template>page#section}}` doesn't exist
+
 2022-11-24 v0.5
 * Fixed some warnings
-* Doesn't show the header for templates included in a section when calling `{{template>page#section}}`
+* Doesn't show the heading when calling just a section of a template `{{template>page#section}}`
 
 2022-11-21 v0.4
 * Updated v0.3.1 to work with 2022-07-31 Igor:
