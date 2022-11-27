@@ -5,4 +5,4 @@ Plugin for [DokuWiki](https://www.dokuwiki.org), available at [plugin: templater
 
     Author          : Jonathan Arkell
     Updater         : Daniel Dias Rodrigues
-    Current Version : 0.5.2 (2022-11-25a)
+    Current Version : 0.6 (2022-11-27)

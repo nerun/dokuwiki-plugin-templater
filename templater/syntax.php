@@ -21,7 +21,7 @@
  *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
  *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
  *                with one bugfix from jack126guy <halfgray7e@gmail.com>
- * @version    0.5.2 (2022-11-25a)
+ * @version    0.6 (2022-11-27)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -30,6 +30,7 @@ define('END_REPLACE_DELIMITER', '@');
 if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
 if(!defined('DOKU_PLUGIN')) define('DOKU_PLUGIN',DOKU_INC.'lib/plugins/');
 require_once(DOKU_PLUGIN.'syntax.php');
+require_once('debug.php');
 
 /**
  * All DokuWiki plugins to extend the parser/rendering mechanism
@@ -43,7 +44,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
 			'email'  => 'jonnay@jonnay.net',
-			'date'   => '2022-11-25a',
+			'date'   => '2022-11-27',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
@@ -108,7 +109,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		if (array_key_exists(1, $wikipage)) {
 			$section = cleanID($wikipage[1]);
 		} else {
-			$section = "";
+			$section = null;
 		}
 		
 		return array($wikipage[0], $replacers, $section);
@@ -169,22 +170,24 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		// filter section if given
 		if ($data[2]) {
-			$getSection[] = $this->_getSection($data[2], $instr);
-			$instr = $getSection[0][0];
-			if(!is_null($getSection[0][1])) {
-			    $renderer->doc .= sprintf($getSection[0][1], $data[2]);
-			    $renderer->internalLink($data[0]);
-			    $renderer->doc .= '.<br/><br/></div>';
+			$getSection = $this->_getSection($data[2], $instr);
+			
+			$instr = $getSection[0];
+			
+			if(!is_null($getSection[1])) {
+				$renderer->doc .= sprintf($getSection[1], $data[2]);
+				$renderer->internalLink($data[0]);
+				$renderer->doc .= '.<br/><br/></div>';
 			}
 		}
-
+		
 		// correct relative internal links and media
 		$instr = $this->_correctRelNS($instr, $data[0]);
 		
-		// doesn't show the heading for each template if {{template>page#section}} not {{template>page}}
-		if (array_key_exists(0, $instr[0][1])) {
-			if ($instr[0][1][0] == $data[2]) {
-				$instr[0][1][0] = "";
+		// doesn't show the heading for each template if {{template>page#section}}
+		if (sizeof($instr) > 0 && !isset($getSection[1])) {
+			if (array_key_exists(0, $instr[0][1]) && $instr[0][1][0] == $data[2]) {
+				$instr[0][1][0] = null;
 			}
 		}
 		
@@ -214,37 +217,40 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	 * Get a section including its subsections
 	 */
 	function _getSection($title, $instructions) {
+	   	$i = (array) null;
+	   	$level = null;
+	   	$no_section = null;
+		
 		foreach ($instructions as $instruction) {
 			if ($instruction[0] == 'header') {
-
+				
 				// found the right header
 				if (cleanID($instruction[1][0]) == $title) {
 					$level = $instruction[1][1];
 					$i[] = $instruction;
-
-				// next header of the same level -> exit
-				} else if (isset($level)) {
-					if ($instruction[1][1] == $level) {
-						return $i;
+				} else {
+					if (isset($level) && isset($i)) {
+						if ($instruction[1][1] > $level) {
+							$i[] = $instruction;
+				// next header of the same level or higher -> exit
+						} else {
+							return array($i,null);
+						}
 					}
 				}
-
-			// add instructions from our section
-			} else if (isset($level)) {
-				$i[] = $instruction;
+			} else { // content between headers
+				if (isset($level) && isset($i)) {
+					$i[] = $instruction;
+				}
 			} 
 		}
+		
 		// Fix for when page#section doesn't exist
-		if(!isset($i)) {
-			$i[] = $instruction;
+		if(sizeof($i) == 0) {
 			$no_section = $this->getLang('no_such_section');
-		}  else {
-		    $no_section = null;
 		}
 		
-		$array_i_nosection = array($i,$no_section);
-		
-		return $array_i_nosection;
+		return array($i,$no_section);
 	}
 
 	/**

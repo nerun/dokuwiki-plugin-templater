@@ -1,5 +1,9 @@
 # CHANGELOG
 
+2022-11-27 v0.6
+* Fixed doesn't show the heading when calling just a section
+* Complete rework of function _ _getSection()_
+
 2022-11-25a v0.5.2
 * Better fix for `{{template>page#section}}` doesn't exist with error message
 * Updated error messages to look better

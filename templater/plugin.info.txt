@@ -2,7 +2,7 @@
 base   templater
 author Jonathan Arkell (updated by Daniel Dias Rodrigues)
 email  jonnay@jonnay.net
-date   2022-11-25a
+date   2022-11-27
 name   Templater Plugin
 desc   Displays a wiki page (or a section thereof) within another, with user selectable replacements.
 url    https://www.dokuwiki.org/plugin:templater
