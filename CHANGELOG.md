@@ -1,4 +1,6 @@
 # CHANGELOG
+2023-01-03 v0.6.1
+* By trimming off quotation marks after the whitespace trim, we allow users to wrap their strings in quotation marks in order to keep any intentional leading or trailing whitespace - useful for bulleted lists, code blocks etc.
 
 2022-11-27 v0.6
 * Fixed doesn't show the heading when calling just a section
