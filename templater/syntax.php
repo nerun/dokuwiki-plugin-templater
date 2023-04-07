@@ -299,7 +299,11 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 			foreach($replacers as $rep) {
 				list($k, $v) = explode('=', $rep, 2);
 				$r['keys'][] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
-				$r['vals'][] = trim(trim(str_replace('\|','|',$v)), "\"");
+				if (trim($v)[0] == '"' and trim($v)[-1] == '"') {
+					$r['vals'][] = substr(trim(str_replace('\|','|',$v)), 1, -1);
+				} else {
+					$r['vals'][] = trim(str_replace('\|','|',$v));
+				}
 			}
 		} else {
 			// This is an assertion failure. We should NEVER get here.
