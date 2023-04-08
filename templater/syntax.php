@@ -26,6 +26,7 @@
 
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
+define('CONDITIONAL_CHUNK_DELIMITER', '###');
 
 if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
 if(!defined('DOKU_PLUGIN')) define('DOKU_PLUGIN',DOKU_INC.'lib/plugins/');
@@ -153,20 +154,35 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		// Get the raw file, and parse it into its instructions. This could be cached... maybe.
 		$rawFile = io_readfile($file);
+
+		// Split into chunks
+		$parts = explode(CONDITIONAL_CHUNK_DELIMITER, $rawFile);
+
+		// fill in all known values
 		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-			$rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
+			$parts = str_replace($data[1]['keys'], $data[1]['vals'], $parts);
 		}
 
 		// replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
-		$left_overs = '/'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'/';
+		$left_overs = '/'.BEGIN_REPLACE_DELIMITER.'\w*'.END_REPLACE_DELIMITER.'/';
 
 		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
 			$def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
-			$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
-			$rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
+			if ($def_key) {
+				// if caller defined a DEFAULT_STR, use that
+				$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
+				$parts = preg_replace($left_overs, $DEFAULT_STR, $parts);
+			} else {
+				// otherwise remove any chunk with unmatched @placeholder@s, allowing for conditionally including only populated sections
+				foreach ($parts as $key => $value) {
+				    if (preg_match($left_overs, $value) != 0) {
+				        unset($parts[$key]);
+				    }
+				}
+			}
 		}
 
-		$instr = p_get_instructions($rawFile);
+		$instr = p_get_instructions(implode($parts));
 
 		// filter section if given
 		if ($data[2]) {
