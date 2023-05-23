@@ -1,10 +1,10 @@
 # CHANGELOG
 
 2023-05-23 v0.6.2
-* Previous changes didn't allow the actual displayed string to start or end with quotation marks. This fixes that by allowing such strings to be ""double quoted"" and only removing the outermost quotes.
+* Previous changes didn't allow the actual displayed string to start or end with quotation marks. This fixes that by allowing such strings to be ""double quoted"" and only removing the outermost quotes. (by [Turq Whiteside](https://github.com/TurqW))
 
 2023-01-03 v0.6.1
-* By trimming off quotation marks after the whitespace trim, we allow users to wrap their strings in quotation marks in order to keep any intentional leading or trailing whitespace - useful for bulleted lists, code blocks etc.
+* By trimming off quotation marks after the whitespace trim, we allow users to wrap their strings in quotation marks in order to keep any intentional leading or trailing whitespace - useful for bulleted lists, code blocks etc. (by [Turq Whiteside](https://github.com/TurqW))
 
 2022-11-27 v0.6
 * Fixed doesn't show the heading when calling just a section
