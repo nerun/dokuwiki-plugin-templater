@@ -14,15 +14,15 @@
  * Templates are wiki pages, with replacers being delimited like:
  *    @key1@ @key2@ @key3@
  *
- * @license    GPL 2 (http://www.gnu.org/licenses/gpl.html)
- * @author     Jonathan Arkell <jonnay@jonnay.net>
- *                based on code by Esther Brunner <esther@kaffeehaus.ch>
- * @updaters   Vincent de Lau <vincent@delau.nl>
- *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
- *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
- *                with one bugfix from jack126guy <halfgray7e@gmail.com>
- *                constributions by Turq Whiteside <turq@mage.city>
- * @version    0.6.2 (2023-05-23)
+ * @license        GPL 2 (http://www.gnu.org/licenses/gpl.html)
+ * @author         Jonathan Arkell <jonnay@jonnay.net>
+ *                    based on code by Esther Brunner <esther@kaffeehaus.ch>
+ * @maintainer     Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
+ * @contributors   Vincent de Lau <vincent@delau.nl>
+ *                 Ximin Luo <xl269@cam.ac.uk>
+ *                 jack126guy <halfgray7e@gmail.com>
+ *                 Turq Whiteside <turq@mage.city>
+ * @version      0.6.2 (2023-05-23)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -43,7 +43,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	 */
 	function getInfo() {
 		return array(
-			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
+			'author' => 'Daniel Dias Rodrigues',
 			'email'  => 'danieldiasr@gmail.com',
 			'date'   => '2023-05-23',
 			'name'   => 'Templater Plugin',

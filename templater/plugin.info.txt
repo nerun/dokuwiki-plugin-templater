@@ -1,6 +1,6 @@
 # General Plugin Info do not edit
 base   templater
-author Jonathan Arkell (updated by Daniel Dias Rodrigues)
+author Daniel Dias Rodrigues
 email  danieldiasr@gmail.com
 date   2023-05-23
 name   Templater Plugin
