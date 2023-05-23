@@ -21,7 +21,8 @@
  *                with bugfix from Ximin Luo <xl269@cam.ac.uk>
  *             Daniel Dias Rodrigues (aka Nerun) <danieldiasr@gmail.com>
  *                with one bugfix from jack126guy <halfgray7e@gmail.com>
- * @version    0.6.1 (2023-01-03)
+ *                constributions by Turq Whiteside <turq@mage.city>
+ * @version    0.6.2 (2023-05-23)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -43,8 +44,8 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	function getInfo() {
 		return array(
 			'author' => 'Jonathan Arkell (updated by Daniel Dias Rodrigues)',
-			'email'  => 'jonnay@jonnay.net',
-			'date'   => '2023-01-03',
+			'email'  => 'danieldiasr@gmail.com',
+			'date'   => '2023-05-23',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
