@@ -1,5 +1,9 @@
 # CHANGELOG
 
+2023-06-17 v0.7
+* Included Dutch translation (by G. Uitslag).
+* Some modifications to facilitate the translation by DokuWiki Translation Tool.
+
 2023-05-23 v0.6.2
 * Previous changes didn't allow the actual displayed string to start or end with quotation marks. This fixes that by allowing such strings to be ""double quoted"" and only removing the outermost quotes. (by [Turq Whiteside](https://github.com/TurqW))
 

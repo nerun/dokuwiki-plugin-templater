@@ -22,7 +22,7 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
- * @version      0.6.2 (2023-05-23)
+ * @version        0.7 (2023-06-17)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -45,7 +45,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Daniel Dias Rodrigues',
 			'email'  => 'danieldiasr@gmail.com',
-			'date'   => '2023-05-23',
+			'date'   => '2023-06-17',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',
@@ -128,24 +128,30 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		if ($data[0] === false) {
 			// False means no permissions
+			$renderer->doc .= '<div class="templater"> ';
 			$renderer->doc .= $this->getLang('no_permissions_view');
+			$renderer->doc .= ' </div>';
 			$renderer->info['cache'] = FALSE;
 			return true;
 		}
 
 		$file = wikiFN($data[0]);
 		if (!@file_exists($file)) {
-			$renderer->doc .= '<div class="templater">';
+			$renderer->doc .= '<div class="templater">— ';
 			$renderer->doc .= $this->getLang('template');
+			$renderer->doc .= ' ';
 			$renderer->internalLink($data[0]);
+			$renderer->doc .= ' ';
 			$renderer->doc .= $this->getLang('not_found');
 			$renderer->doc .= '<br/><br/></div>';
 			$renderer->info['cache'] = FALSE;
 			return true;
 		} else if (array_search($data[0], self::$pagestack) !== false) {
-			$renderer->doc .= '<div class="templater">';
+			$renderer->doc .= '<div class="templater">— ';
 			$renderer->doc .= $this->getLang('processing_template');
+			$renderer->doc .= ' ';
 			$renderer->internalLink($data[0]);
+			$renderer->doc .= ' ';
 			$renderer->doc .= $this->getLang('stopped_recursion');
 			$renderer->doc .= '<br/><br/></div>';
 			return true;
@@ -248,7 +254,9 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		
 		// Fix for when page#section doesn't exist
 		if(sizeof($i) == 0) {
-			$no_section = $this->getLang('no_such_section');
+			$no_section_begin = '<div class="templater">— ';
+			$no_section_end = $this->getLang('no_such_section');
+			$no_section = $no_section_begin . $no_section_end . ' ';
 		}
 		
 		return array($i,$no_section);
