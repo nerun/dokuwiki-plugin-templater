@@ -22,7 +22,7 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
- * @version        0.7 (2023-06-17)
+ * @version        0.7.1 (2023-08-17)
  */
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -30,7 +30,6 @@ define('END_REPLACE_DELIMITER', '@');
 
 if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
 if(!defined('DOKU_PLUGIN')) define('DOKU_PLUGIN',DOKU_INC.'lib/plugins/');
-require_once(DOKU_PLUGIN.'syntax.php');
 require_once('debug.php');
 
 /**
@@ -45,7 +44,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Daniel Dias Rodrigues',
 			'email'  => 'danieldiasr@gmail.com',
-			'date'   => '2023-06-17',
+			'date'   => '2023-08-17',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'    => 'http://www.dokuwiki.org/plugin:templater',

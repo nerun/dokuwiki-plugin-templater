@@ -1,5 +1,8 @@
 # CHANGELOG
 
+2023-08-17 v0.7.1
+* Fixed deprecation warning.
+
 2023-06-17 v0.7
 * Included Dutch translation (by G. Uitslag).
 * Some modifications to facilitate the translation by DokuWiki Translation Tool.
