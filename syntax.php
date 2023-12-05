@@ -29,7 +29,6 @@ define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
 
 if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
-if(!defined('DOKU_PLUGIN')) define('DOKU_PLUGIN',DOKU_INC.'lib/plugins/');
 require_once('debug.php');
 
 /**
