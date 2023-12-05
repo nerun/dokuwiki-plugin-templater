@@ -22,11 +22,14 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
- * @version        0.7.1 (2023-08-17)
+ * @version        0.8 (2023-12-05)
  */
+
+use dokuwiki\File\PageResolver;
 
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
+define('CONDITIONAL_CHUNK_DELIMITER', '#ifemp');
 
 if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
 require_once('debug.php');
@@ -43,10 +46,10 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Daniel Dias Rodrigues',
 			'email'  => 'danieldiasr@gmail.com',
-			'date'   => '2023-08-17',
+			'date'   => '2023-12-05',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
-			'url'    => 'http://www.dokuwiki.org/plugin:templater',
+			'url'	 => 'http://www.dokuwiki.org/plugin:templater',
 		);
 	}
 
@@ -88,15 +91,18 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	function handle($match, $state, $pos, Doku_Handler $handler) {
 		global $ID;
 
-		$match = substr($match, 11, -2);                        // strip markup
-		$replacers = preg_split('/(?<!\\\\)\|/', $match);       // Get the replacers
+		$match = substr($match, 11, -2);						// strip markup
+		$replacers = preg_split('/(?<!\\\\)\|/', $match);		// Get the replacers
 		$wikipage = array_shift($replacers);
 
 		$replacers = $this->_massageReplacers($replacers);
 
-		$wikipage = preg_split('/\#/u', $wikipage, 2);                      // split hash from filename
+		$wikipage = preg_split('/\#/u', $wikipage, 2);						// split hash from filename
 		$parentpage = empty(self::$pagestack)? $ID : end(self::$pagestack); // get correct namespace
-		resolve_pageid(getNS($parentpage), $wikipage[0], $exists);          // resolve shortcuts
+		// resolve shortcuts:
+		$resolver = new PageResolver(getNS($parentpage));
+		$wikipage[0] = $resolver->resolveId($wikipage[0]);
+		$exists = page_exists($wikipage[0]);
 
 		// check for perrmission
 		if (auth_quickaclcheck($wikipage[0]) < 1)
@@ -158,8 +164,13 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		// Get the raw file, and parse it into its instructions. This could be cached... maybe.
 		$rawFile = io_readfile($file);
+		
+		// Split into chunks
+		$parts = explode(CONDITIONAL_CHUNK_DELIMITER, $rawFile);
+		
+		// fill in all known values
 		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-			$rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
+			$parts = str_replace($data[1]['keys'], $data[1]['vals'], $parts);
 		}
 
 		// replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
@@ -167,11 +178,22 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
 			$def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
-			$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
-			$rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
+			if ($def_key) {
+				// if caller defined a DEFAULT_STR, use that
+				$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
+				$parts = preg_replace($left_overs, $DEFAULT_STR, $parts);
+			}
+			else {
+				// otherwise remove any chunk with unmatched @placeholder@s, allowing for conditionally including only populated sections
+				foreach ($parts as $key => $value) {
+					if (preg_match($left_overs, $value) != 0) {
+						unset($parts[$key]);
+					}
+				}
+			}
 		}
 
-		$instr = p_get_instructions($rawFile);
+		$instr = p_get_instructions(implode($parts));
 
 		// filter section if given
 		if ($data[2]) {
@@ -222,9 +244,9 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	 * Get a section including its subsections
 	 */
 	function _getSection($title, $instructions) {
-	   	$i = (array) null;
-	   	$level = null;
-	   	$no_section = null;
+		$i = (array) null;
+		$level = null;
+		$no_section = null;
 		
 		foreach ($instructions as $instruction) {
 			if ($instruction[0] == 'header') {
@@ -299,22 +321,26 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 			$r['keys'] = null;
 			$r['vals'] = null;
 		} else if (is_string($replacers)) {
-			list($k, $v) = explode('=', $replacers, 2);
-			$r['keys'] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
-			$r['vals'] = trim(str_replace('\|', '|', $v));
-		} else if (is_array($replacers)) {
+			if ( str_contains($replacers, '=') && (substr($replacers, -1) != '=') ){
+				list($k, $v) = explode('=', $replacers, 2);
+				$r['keys'] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
+				$r['vals'] = trim(str_replace('\|', '|', $v));
+			}
+		} else if ( is_array($replacers) ) {
 			foreach($replacers as $rep) {
-				list($k, $v) = explode('=', $rep, 2);
-				$r['keys'][] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
-				if (trim($v)[0] == '"' and trim($v)[-1] == '"') {
-					$r['vals'][] = substr(trim(str_replace('\|','|',$v)), 1, -1);
-				} else {
-					$r['vals'][] = trim(str_replace('\|','|',$v));
+				if ( str_contains($rep, '=') && (substr($rep, -1) != '=') ){
+					list($k, $v) = explode('=', $rep, 2);
+					$r['keys'][] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
+					if (trim($v)[0] == '"' and trim($v)[-1] == '"') {
+						$r['vals'][] = substr(trim(str_replace('\|','|',$v)), 1, -1);
+					} else {
+						$r['vals'][] = trim(str_replace('\|','|',$v));
+					}
 				}
 			}
 		} else {
 			// This is an assertion failure. We should NEVER get here.
-			//die("FATAL ERROR!  Unknown type passed to syntax_plugin_templater::massageReplaceMentArray() can't massage syntax_plugin_templater::\$replacers!  Type is:".gettype($r)." Value is:".$r);
+			//die("FATAL ERROR!  Unknown type passed to syntax_plugin_templater::massageReplaceMentArray() can't message syntax_plugin_templater::\$replacers!  Type is:".gettype($r)." Value is:".$r);
 			$r['keys'] = null;
 			$r['vals'] = null;
 		}
