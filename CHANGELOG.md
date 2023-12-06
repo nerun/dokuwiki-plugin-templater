@@ -1,5 +1,8 @@
 # CHANGELOG
 
+2023-12-06 v0.8.1:
+* Fixed "Uninitialized string offset" when user provides "parameter=" without value.
+
 2023-12-05 v0.8:
 * Fixed deprecation warning (PageResolver).
 * Fixed undefined array keys and other minor errors.
