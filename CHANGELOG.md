@@ -1,5 +1,8 @@
 # CHANGELOG
 
+2023-12-07 v0.8.2:
+* Translation update (zh) by [粗音未来](miku39@onsei.fans) (Miku).
+
 2023-12-06 v0.8.1:
 * Fixed "Uninitialized string offset" when user provides "parameter=" without value.
 
