@@ -31,7 +31,6 @@ define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
 define('CONDITIONAL_CHUNK_DELIMITER', '#ifemp');
 
-if(!defined('DOKU_INC')) define('DOKU_INC',realpath(dirname(__FILE__).'/../../').'/');
 require_once('debug.php');
 
 /**
