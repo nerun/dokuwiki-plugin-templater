@@ -1,6 +1,6 @@
 # General Plugin Info do not edit
 base   templater
-author Daniel Dias Rodrigues and Jonathan Arkell.
+author Daniel Rodrigues ("Nerun") and Jonathan Arkell.
 email  danieldiasr@gmail.com
 date   2023-12-07
 name   Templater Plugin
