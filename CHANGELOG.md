@@ -1,7 +1,7 @@
 # CHANGELOG
 
 2023-12-07 v0.8.2:
-* Included Chinese (simplified) translation. (by [粗音未来](miku39@onsei.fans), aka Miku).
+* Included Chinese (simplified) translation. (by [粗音未来](miku39@onsei.fans), aka "Miku").
 
 2023-12-06 v0.8.1:
 * Fixed "Uninitialized string offset" when user provides "parameter=" without value.
@@ -15,7 +15,7 @@
 * Fixed deprecation warning (`require_once(DOKU_PLUGIN.'syntax.php')`).
 
 2023-06-17 v0.7
-* Included Dutch translation. (by [G. Uitslag](klapinklapin@gmail.com))
+* Included Dutch translation. (by [Gerrit Uitslag](https://github.com/Klap-in), aka "Klap-in")
 * Some modifications to facilitate the translation by DokuWiki Translation Tool.
 
 2023-05-23 v0.6.2
