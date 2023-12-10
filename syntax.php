@@ -320,14 +320,14 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 			$r['keys'] = null;
 			$r['vals'] = null;
 		} else if (is_string($replacers)) {
-			if ( str_contains($replacers, '=') && (substr($replacers, -2, 1) != '=') ){
+			if ( str_contains($replacers, '=') && (substr(trim($replacers), -1) != '=') ){
 				list($k, $v) = explode('=', $replacers, 2);
 				$r['keys'] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
 				$r['vals'] = trim(str_replace('\|', '|', $v));
 			}
 		} else if ( is_array($replacers) ) {
 			foreach($replacers as $rep) {
-				if ( str_contains($rep, '=') && (substr($rep, -2, 1) != '=') ){
+				if ( str_contains($rep, '=') && (substr(trim($rep), -1) != '=') ){
 					list($k, $v) = explode('=', $rep, 2);
 					$r['keys'][] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
 					if (trim($v)[0] == '"' and trim($v)[-1] == '"') {
