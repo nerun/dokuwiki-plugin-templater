@@ -1,5 +1,8 @@
 # CHANGELOG
 
+2023-12-09 v0.8.3:
+* A better fix for "Uninitialized string offset".
+
 2023-12-07 v0.8.2:
 * Included Chinese (simplified) translation. (by [粗音未来](miku39@onsei.fans), aka "Miku").
 

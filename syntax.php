@@ -22,7 +22,7 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
- * @version        0.8.2 (2023-12-07)
+ * @version        0.8.3 (2023-12-09)
  */
 
 use dokuwiki\File\PageResolver;
@@ -45,7 +45,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Daniel Dias Rodrigues',
 			'email'  => 'danieldiasr@gmail.com',
-			'date'   => '2023-12-07',
+			'date'   => '2023-12-09',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'	 => 'http://www.dokuwiki.org/plugin:templater',

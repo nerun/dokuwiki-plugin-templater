@@ -5,6 +5,6 @@ Plugin for [DokuWiki](https://www.dokuwiki.org), available at [plugin: templater
 
     Maintainer      : Daniel Dias Rodrigues
     Author          : Jonathan Arkell
-    Current Version : 0.8.2 (2023-12-07)
+    Current Version : 0.8.3 (2023-12-09)
 
 Want to translate this plugin to your language? Go to [DokuWiki Localization](https://translate.dokuwiki.org/plugin/templater).

@@ -2,7 +2,7 @@
 base   templater
 author Daniel Rodrigues ("Nerun") and Jonathan Arkell.
 email  danieldiasr@gmail.com
-date   2023-12-07
+date   2023-12-09
 name   Templater Plugin
 desc   Displays a wiki page (or a section thereof) within another, with user selectable replacements.
 url    https://www.dokuwiki.org/plugin:templater
