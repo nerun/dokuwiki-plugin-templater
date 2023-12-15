@@ -1,5 +1,8 @@
 # CHANGELOG
 
+2023-12-14 v0.8.4:
+* Rollback: removed `#ifemp`.
+
 2023-12-09 v0.8.3:
 * A better fix for "Uninitialized string offset".
 

@@ -22,14 +22,13 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
- * @version        0.8.3 (2023-12-09)
+ * @version        0.8.4 (2023-12-14)
  */
 
 use dokuwiki\File\PageResolver;
 
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
-define('CONDITIONAL_CHUNK_DELIMITER', '#ifemp');
 
 require_once('debug.php');
 
@@ -45,7 +44,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		return array(
 			'author' => 'Daniel Dias Rodrigues',
 			'email'  => 'danieldiasr@gmail.com',
-			'date'   => '2023-12-09',
+			'date'   => '2023-12-14',
 			'name'   => 'Templater Plugin',
 			'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
 			'url'	 => 'http://www.dokuwiki.org/plugin:templater',
@@ -164,12 +163,9 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 		// Get the raw file, and parse it into its instructions. This could be cached... maybe.
 		$rawFile = io_readfile($file);
 		
-		// Split into chunks
-		$parts = explode(CONDITIONAL_CHUNK_DELIMITER, $rawFile);
-		
 		// fill in all known values
 		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-			$parts = str_replace($data[1]['keys'], $data[1]['vals'], $parts);
+			$rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
 		}
 
 		// replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
@@ -177,22 +173,11 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
 		if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
 			$def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
-			if ($def_key) {
-				// if caller defined a DEFAULT_STR, use that
-				$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
-				$parts = preg_replace($left_overs, $DEFAULT_STR, $parts);
-			}
-			else {
-				// otherwise remove any chunk with unmatched @placeholder@s, allowing for conditionally including only populated sections
-				foreach ($parts as $key => $value) {
-					if (preg_match($left_overs, $value) != 0) {
-						unset($parts[$key]);
-					}
-				}
-			}
+			$DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
+			$rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
 		}
 
-		$instr = p_get_instructions(implode($parts));
+		$instr = p_get_instructions($rawFile);
 
 		// filter section if given
 		if ($data[2]) {
@@ -347,3 +332,4 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 	}
 }
 ?>
+
