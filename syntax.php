@@ -331,5 +331,4 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         return $r;
     }
 }
-?>
 
