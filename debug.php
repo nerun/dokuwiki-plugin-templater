@@ -22,4 +22,3 @@ function printr($var, $name=null) {
     }
     echo '</pre><br />';
 }
-?>
