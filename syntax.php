@@ -170,7 +170,27 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
         // replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
         $left_overs = '/'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'/';
-
+        
+        // handle #ifemp ... ifemp#
+        if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
+            /**
+             * 1st) Delete "#ifemp @params@ ifemp#":
+             *      Above, all @parameters@ with values given by user were replaced,
+             *      the remaining ones, marked between #ifemp delimiters, should be
+             *      deleted.
+             */
+            $ifemp = preg_replace('/(.*)#ifemp.*'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'.*ifemp#(.*)/s', '\1\2', $rawFile);
+            
+            // 2nd) Remove remaining '#ifemp' and 'ifemp#'' themselves
+            $ifemp = preg_replace('/#?ifemp#?/s', '', $ifemp);
+            
+            // 3rd) Delete empty lines:
+            //      I DON'T KNOW IF TI'S A GOOD IDEA BUT, IF NOT DONE, TABLES CAN BE BROKEN
+            $ifemp = preg_replace('/^[ \t]*[\r\n]+/m', '', $ifemp);
+            
+            $rawFile = $ifemp;
+        }
+        
         if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
             $def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
             $DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
