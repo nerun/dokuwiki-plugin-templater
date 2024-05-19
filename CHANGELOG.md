@@ -1,5 +1,10 @@
 # CHANGELOG
 
+2024-05-19:
+* removed function getInfo(), [replaced by plugin.info.txt since 2009](https://www.dokuwiki.org/devel:plugin_info).
+* removed version numbering (0.8.4 etc): date is better.
+* Dealing with [Conflicting Versions and Basenames](https://www.dokuwiki.org/devel:badextensions).
+
 2023-12-14 v0.8.4:
 * Rollback: removed `#ifemp`.
 

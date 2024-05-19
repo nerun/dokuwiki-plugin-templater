@@ -22,7 +22,6 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
- * @version        0.8.4 (2023-12-14)
  */
 
 use dokuwiki\File\PageResolver;
@@ -37,20 +36,6 @@ require_once('debug.php');
  * need to inherit from this class
  */
 class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
-    /**
-     * return some info
-     */
-    function getInfo() {
-        return array(
-            'author' => 'Daniel Dias Rodrigues',
-            'email'  => 'danieldiasr@gmail.com',
-            'date'   => '2023-12-14',
-            'name'   => 'Templater Plugin',
-            'desc'   => 'Displays a wiki page (or a section thereof) within another, with user selectable replacements',
-            'url'     => 'http://www.dokuwiki.org/plugin:templater',
-        );
-    }
-
     /**
      * What kind of syntax are we?
      */
@@ -331,4 +316,3 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         return $r;
     }
 }
-
