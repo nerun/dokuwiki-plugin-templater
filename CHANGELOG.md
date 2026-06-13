@@ -1,5 +1,8 @@
 # CHANGELOG
 
+2026-06-13
+* Included Slovak translation. (by Wizzard \<wizzardsk@gmail.com>).
+
 2024-05-19:
 * removed function getInfo(), [replaced by plugin.info.txt since 2009](https://www.dokuwiki.org/devel:plugin_info).
 * removed version numbering (0.8.4 etc): date is better.
