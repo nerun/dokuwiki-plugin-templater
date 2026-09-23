@@ -148,19 +148,59 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         // Get the raw file, and parse it into its instructions. This could be cached... maybe.
         $rawFile = io_readfile($file);
         
+        $replacements = array();
+        $DEFAULT_STR = "";
+        $has_replacements = false;
+
         // fill in all known values
         if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-            $rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
+            // $has_replacements tracks whether the user passed any parameters in the template call.
+            // E.g., true for {{template>page|foo=bar}}, false for {{template>page}}
+            $has_replacements = true;
+            foreach($data[1]['keys'] as $i => $k) {
+                // Example: If the user wrote {{template>page|name=John}}
+                // The $k variable here is the exact string '@name@'. 
+                // We strip the '@' characters from both ends to extract just 'name'.
+                $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
+                // Using our index $i, $data[1]['vals'][$i] retrieves 'John'.
+                $replacements[$inner_key] = $data[1]['vals'][$i];
+            }
+
+            // DEFAULT_STR is a special parameter you can pass to the template (e.g. {{template>page|DEFAULT_STR=Unknown}})
+            // It acts as a global fallback for ANY variable that doesn't have a value or a specific fallback.
+            if (isset($replacements['DEFAULT_STR'])) {
+                $DEFAULT_STR = $replacements['DEFAULT_STR'];
+            }
         }
 
-        // replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
-        $left_overs = '/'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'/';
+        // Regex matches variables with optional fallbacks using the format @key@ or @key|fallback@ inside the destination template page.
+        $pattern = '/'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'([^'.preg_quote(BEGIN_REPLACE_DELIMITER.'|', '/').']+)(?:\|([^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').']*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'/';
 
-        if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-            $def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
-            $DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
-            $rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
-        }
+        $rawFile = preg_replace_callback($pattern, function($matches) use ($replacements, $DEFAULT_STR, $has_replacements) {
+            $key = trim($matches[1]);
+
+            // If a value was explicitly passed in the template call, use it.
+            // Example: @foo@ or @foo|fallback@ -> Replaced by the provided value of 'foo'.
+            if (array_key_exists($key, $replacements)) {
+                return $replacements[$key];
+            }
+
+            // If a fallback is provided in the template file and no value was passed, use the fallback.
+            // Example: @foo|fallback@ -> Replaced by 'fallback' if 'foo' is missing.
+            // Example: @foo|@         -> Replaced by empty string if 'foo' is missing (hides the variable).
+            if (isset($matches[2])) {
+                return $matches[2];
+            }
+
+            // Otherwise, use DEFAULT_STR, but only if the user passed parameters (legacy behavior).
+            // Example: @foo@ -> Replaced by DEFAULT_STR (often "") if $has_replacements is true.
+            if ($has_replacements) {
+                return $DEFAULT_STR;
+            }
+
+            // Leave the variable intact on the page if no replacements were provided
+            return $matches[0];
+        }, $rawFile);
 
         $instr = p_get_instructions($rawFile);
 
