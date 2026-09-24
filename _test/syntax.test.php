@@ -68,7 +68,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_order1|b=Hello|a=@b@}}'), $info);
         // It outputs an empty string because @b@ is inserted after b was evaluated, leaving @b@ unmatched.
         // Then DEFAULT_STR (empty string) replaces unmatched @b@.
-        $this->assertStringContainsString('A: </p>', $xhtml);
+        $this->assertMatchesRegularExpression('/A:\s*<\/p>/', $xhtml);
 
         // However, a=@b@|b=Hello produced Hello.
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_order1|a=@b@|b=Hello}}'), $info);
@@ -100,7 +100,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         
         // Without parameter, it should fall back to empty string
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_empty_fallback}}'), $info);
-        $this->assertStringContainsString('A: </p>', $xhtml);
+        $this->assertMatchesRegularExpression('/A:\s*<\/p>/', $xhtml);
     }
 
     public function test_literal_backreferences() {
@@ -123,7 +123,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
 
         // Also test when the first DEFAULT_STR is intentionally empty.
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dup_def|x=OK|DEFAULT_STR=|DEFAULT_STR=Second}}'), $info);
-        $this->assertStringContainsString('A: </p>', $xhtml);
+        $this->assertMatchesRegularExpression('/A:\s*<\/p>/', $xhtml);
     }
 
     public function test_ignore_double_delimiters() {
