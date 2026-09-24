@@ -1,0 +1,39 @@
+name: PHP Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.0', '8.1', '8.2', '8.3']
+        dokuwiki-branch: ['master', 'stable']
+    steps:
+      - name: Checkout DokuWiki
+        uses: actions/checkout@v4
+        with:
+          repository: dokuwiki/dokuwiki
+          ref: ${{ matrix.dokuwiki-branch }}
+          path: dokuwiki
+          
+      - name: Checkout Plugin
+        uses: actions/checkout@v4
+        with:
+          path: dokuwiki/lib/plugins/templater
+          
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          
+      - name: Install dependencies
+        working-directory: dokuwiki/_test
+        run: composer install --no-interaction --no-progress --prefer-dist
+        
+      - name: Run tests
+        working-directory: dokuwiki/_test
+        run: vendor/bin/phpunit --group plugin_templater

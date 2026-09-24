@@ -148,19 +148,63 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         // Get the raw file, and parse it into its instructions. This could be cached... maybe.
         $rawFile = io_readfile($file);
         
-        // fill in all known values
+        $replacements = array();
+        $DEFAULT_STR = "";
+        $has_replacements = false;
+        $default_str_set = false;
+
+        // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
         if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-            $rawFile = str_replace($data[1]['keys'], $data[1]['vals'], $rawFile);
+            $has_replacements = true; 
+            
+            foreach($data[1]['keys'] as $i => $k) {
+                $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
+                $val = $data[1]['vals'][$i];
+                
+                if ($inner_key === 'DEFAULT_STR' && !$default_str_set) {
+                    $DEFAULT_STR = $val;
+                    $default_str_set = true;
+                }
+                
+                // Emulate str_replace but supporting fallbacks
+                // It replaces @key@ or @key|fallback@ with the passed value
+                // We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                $pattern = '/(?<!'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').')'.preg_quote(BEGIN_REPLACE_DELIMITER.$inner_key, '/').'(?:\|(?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*)?'.preg_quote(END_REPLACE_DELIMITER, '/').'(?!'.preg_quote(END_REPLACE_DELIMITER, '/').')/';
+                
+                // We use preg_replace_callback instead of preg_replace to ensure the value is treated 
+                // as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
+                $rawFile = preg_replace_callback($pattern, function($matches) use ($val) {
+                    return $val;
+                }, $rawFile);
+            }
         }
 
-        // replace unmatched substitutions with "" or use DEFAULT_STR from data arguments if exists.
-        $left_overs = '/'.BEGIN_REPLACE_DELIMITER.'.*'.END_REPLACE_DELIMITER.'/';
+        // Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
+        // We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails (e.g. alice@example.org and bob@example.org).
+        // Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
+        // Literal '@' inside the fallback can be escaped with '\@'
+        $pattern = '/(?<!'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').')'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'([\w\-.]+)(?:\|((?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'(?!'.preg_quote(END_REPLACE_DELIMITER, '/').')/';
 
-        if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-            $def_key = array_search(BEGIN_REPLACE_DELIMITER."DEFAULT_STR".END_REPLACE_DELIMITER, $data[1]['keys']);
-            $DEFAULT_STR = $def_key ? $data[1]['vals'][$def_key] : "";
-            $rawFile = preg_replace($left_overs, $DEFAULT_STR, $rawFile);
-        }
+        $rawFile = preg_replace_callback($pattern, function($matches) use ($DEFAULT_STR, $has_replacements) {
+            $fallback = isset($matches[2]) ? str_replace(
+                ['\\'.BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'], 
+                [BEGIN_REPLACE_DELIMITER, '|', '\\'], 
+                $matches[2]
+            ) : null;
+
+            // If a fallback is provided, use it
+            if ($fallback !== null) {
+                return $fallback;
+            }
+
+            // Otherwise, use DEFAULT_STR if parameters were passed (legacy behavior)
+            if ($has_replacements) {
+                return $DEFAULT_STR;
+            }
+
+            // Leave intact
+            return $matches[0];
+        }, $rawFile);
 
         $instr = p_get_instructions($rawFile);
 
@@ -182,7 +226,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         
         // doesn't show the heading for each template if {{template>page#section}}
         if (sizeof($instr) > 0 && !isset($getSection[1])) {
-            if (array_key_exists(0, $instr[0][1]) && $instr[0][1][0] == $data[2]) {
+            if (array_key_exists(0, $instr[0][1]) && strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
                 $instr[0][1][0] = null;
             }
         }
