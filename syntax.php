@@ -23,14 +23,13 @@
  *                 Ximin Luo <xl269@cam.ac.uk>
  *                 jack126guy <halfgray7e@gmail.com>
  *                 Turq Whiteside <turq@mage.city>
+ *                 Eduardo Mozart de Oliveira <github.com/eduardomozart>
  */
 
 use dokuwiki\File\PageResolver;
 
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
-
-
 
 /**
  * All DokuWiki plugins to extend the parser/rendering mechanism
