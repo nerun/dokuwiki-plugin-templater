@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Templater Plugin: Based from the include plugin, like MediaWiki's template
  * Usage:
