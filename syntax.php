@@ -151,6 +151,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         $replacements = array();
         $DEFAULT_STR = "";
         $has_replacements = false;
+        $default_str_set = false;
 
         // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
         if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
@@ -160,14 +161,20 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
                 $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
                 $val = $data[1]['vals'][$i];
                 
-                if ($inner_key === 'DEFAULT_STR') {
+                if ($inner_key === 'DEFAULT_STR' && !$default_str_set) {
                     $DEFAULT_STR = $val;
+                    $default_str_set = true;
                 }
                 
                 // Emulate str_replace but supporting fallbacks
                 // It replaces @key@ or @key|fallback@ with the passed value
                 $pattern = '/'.preg_quote(BEGIN_REPLACE_DELIMITER.$inner_key, '/').'(?:\|(?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*)?'.preg_quote(END_REPLACE_DELIMITER, '/').'/';
-                $rawFile = preg_replace($pattern, $val, $rawFile);
+                
+                // We use preg_replace_callback instead of preg_replace to ensure the value is treated 
+                // as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
+                $rawFile = preg_replace_callback($pattern, function($matches) use ($val) {
+                    return $val;
+                }, $rawFile);
             }
         }
 
@@ -218,7 +225,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         
         // doesn't show the heading for each template if {{template>page#section}}
         if (sizeof($instr) > 0 && !isset($getSection[1])) {
-            if (array_key_exists(0, $instr[0][1]) && $instr[0][1][0] == $data[2]) {
+            if (array_key_exists(0, $instr[0][1]) && strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
                 $instr[0][1][0] = null;
             }
         }

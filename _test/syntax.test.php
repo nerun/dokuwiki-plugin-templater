@@ -102,4 +102,27 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_empty_fallback}}'), $info);
         $this->assertStringContainsString('A: </p>', $xhtml);
     }
+
+    public function test_literal_backreferences() {
+        saveWikiText('test_backref', 'A: @a@', 'Test setup');
+        
+        // preg_replace interprets $1 or \1 as backreferences. We must ensure they are treated as literal.
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_backref|a=$1}}'), $info);
+        $this->assertStringContainsString('A: $1', $xhtml);
+        
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_backref|a=\1}}'), $info);
+        $this->assertStringContainsString('A: \1', $xhtml);
+    }
+
+    public function test_duplicate_default_str() {
+        saveWikiText('test_dup_def', 'A: @missing@', 'Test setup');
+        
+        // DEFAULT_STR as duplicate should respect the first occurrence.
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dup_def|x=OK|DEFAULT_STR=First|DEFAULT_STR=Second}}'), $info);
+        $this->assertStringContainsString('A: First', $xhtml);
+
+        // Also test when the first DEFAULT_STR is intentionally empty.
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dup_def|x=OK|DEFAULT_STR=|DEFAULT_STR=Second}}'), $info);
+        $this->assertStringContainsString('A: </p>', $xhtml);
+    }
 }
