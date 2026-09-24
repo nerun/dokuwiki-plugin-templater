@@ -90,6 +90,10 @@ class syntax_plugin_templater extends SyntaxPlugin
         $replacers = $this->massageReplacers($replacers);
 
         $wikipage = preg_split('/\#/u', $wikipage, 2);                       // split hash from filename
+        $defaultNamespace = $this->getConf('namespace');
+        if (!empty($defaultNamespace) && !preg_match('/^[:.]/', $wikipage[0])) {
+            $wikipage[0] = $defaultNamespace . ':' . $wikipage[0];
+        }
         $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
         $resolver = new PageResolver(getNS($parentpage));
@@ -162,6 +166,9 @@ class syntax_plugin_templater extends SyntaxPlugin
 
         // Get the raw file, and parse it into its instructions. This could be cached... maybe.
         $rawFile = io_readfile($file);
+        // handle noinclude and includeonly tags (backported from yatp)
+        $rawFile = preg_replace('/<noinclude>.*?<\/noinclude>/is', '', $rawFile);
+        $rawFile = preg_replace('/<includeonly>|<\/includeonly>/i', '', $rawFile);
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
