@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Templater Plugin: Based from the include plugin, like MediaWiki's template
  * Usage:
@@ -29,59 +30,66 @@ use dokuwiki\File\PageResolver;
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
 
-require_once('debug.php');
+
 
 /**
  * All DokuWiki plugins to extend the parser/rendering mechanism
  * need to inherit from this class
  */
-class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
+class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
+{
     /**
      * What kind of syntax are we?
      */
-    function getType() {
+    public function getType()
+    {
         return 'container';
     }
 
-    function getAllowedTypes() {
+    public function getAllowedTypes()
+    {
         return array('container', 'substition', 'protected', 'disabled', 'formatting');
     }
 
     /**
      * Where to sort in?
      */
-    function getSort() {
+    public function getSort()
+    {
         return 302;
     }
 
     /**
      * Paragraph Type
      */
-    function getPType() {
+    public function getPType()
+    {
         return 'block';
     }
 
     /**
      * Connect pattern to lexer
      */
-    function connectTo($mode) {
+    public function connectTo($mode)
+    {
         $this->Lexer->addSpecialPattern("{{template>.+?}}", $mode, 'plugin_templater');
     }
 
     /**
      * Handle the match
      */
-    function handle($match, $state, $pos, Doku_Handler $handler) {
+    public function handle($match, $state, $pos, Doku_Handler $handler)
+    {
         global $ID;
 
         $match = substr($match, 11, -2);                        // strip markup
         $replacers = preg_split('/(?<!\\\\)\|/', $match);        // Get the replacers
         $wikipage = array_shift($replacers);
 
-        $replacers = $this->_massageReplacers($replacers);
+        $replacers = $this->massageReplacers($replacers);
 
         $wikipage = preg_split('/\#/u', $wikipage, 2);                        // split hash from filename
-        $parentpage = empty(self::$pagestack)? $ID : end(self::$pagestack); // get correct namespace
+        $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
         $resolver = new PageResolver(getNS($parentpage));
         $wikipage[0] = $resolver->resolveId($wikipage[0]);
@@ -90,7 +98,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         // check for perrmission
         if (auth_quickaclcheck($wikipage[0]) < 1)
             return false;
-        
+
         // $wikipage[1] is the header of a template enclosed within a section {{template>page#section}}
         // Not all template calls will be {{template>page#section}}, some will be {{template>page}}
         // It fix "Undefined array key 1" warning
@@ -99,7 +107,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         } else {
             $section = null;
         }
-        
+
         return array($wikipage[0], $replacers, $section);
     }
 
@@ -109,7 +117,8 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
      * Create output
      * This is a refactoring candidate. Needs to be a little clearer.
      */
-    function render($mode, Doku_Renderer $renderer, $data) {
+    public function render($mode, Doku_Renderer $renderer, $data)
+    {
         if ($mode != 'xhtml')
             return false;
 
@@ -118,7 +127,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
             $renderer->doc .= '<div class="templater"> ';
             $renderer->doc .= $this->getLang('no_permissions_view');
             $renderer->doc .= ' </div>';
-            $renderer->info['cache'] = FALSE;
+            $renderer->info['cache'] = false;
             return true;
         }
 
@@ -131,9 +140,9 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
             $renderer->doc .= ' ';
             $renderer->doc .= $this->getLang('not_found');
             $renderer->doc .= '<br/><br/></div>';
-            $renderer->info['cache'] = FALSE;
+            $renderer->info['cache'] = false;
             return true;
-        } else if (array_search($data[0], self::$pagestack) !== false) {
+        } elseif (array_search($data[0], self::$pagestack) !== false) {
             $renderer->doc .= '<div class="templater">— ';
             $renderer->doc .= $this->getLang('processing_template');
             $renderer->doc .= ' ';
@@ -147,48 +156,57 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
         // Get the raw file, and parse it into its instructions. This could be cached... maybe.
         $rawFile = io_readfile($file);
-        
+
         $replacements = array();
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
 
         // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
-        if(!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-            $has_replacements = true; 
-            
-            foreach($data[1]['keys'] as $i => $k) {
+        if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
+            $has_replacements = true;
+
+            foreach ($data[1]['keys'] as $i => $k) {
                 $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
                 $val = $data[1]['vals'][$i];
-                
+
                 if ($inner_key === 'DEFAULT_STR' && !$default_str_set) {
                     $DEFAULT_STR = $val;
                     $default_str_set = true;
                 }
-                
+
                 // Emulate str_replace but supporting fallbacks
                 // It replaces @key@ or @key|fallback@ with the passed value
                 // We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
-                $pattern = '/(?<!'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').')'.preg_quote(BEGIN_REPLACE_DELIMITER.$inner_key, '/').'(?:\|(?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*)?'.preg_quote(END_REPLACE_DELIMITER, '/').'(?!'.preg_quote(END_REPLACE_DELIMITER, '/').')/';
-                
-                // We use preg_replace_callback instead of preg_replace to ensure the value is treated 
+                $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+                    . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
+                    . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
+                    . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
+                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
+
+                // We use preg_replace_callback instead of preg_replace to ensure the value is treated
                 // as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
-                $rawFile = preg_replace_callback($pattern, function($matches) use ($val) {
+                $rawFile = preg_replace_callback($pattern, function ($matches) use ($val) {
                     return $val;
                 }, $rawFile);
             }
         }
 
         // Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
-        // We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails (e.g. alice@example.org and bob@example.org).
+        // We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails
+        // (e.g. alice@example.org and bob@example.org).
         // Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
         // Literal '@' inside the fallback can be escaped with '\@'
-        $pattern = '/(?<!'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').')'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'([\w\-.]+)(?:\|((?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'(?!'.preg_quote(END_REPLACE_DELIMITER, '/').')/';
+        $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
+            . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
+            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
 
-        $rawFile = preg_replace_callback($pattern, function($matches) use ($DEFAULT_STR, $has_replacements) {
+        $rawFile = preg_replace_callback($pattern, function ($matches) use ($DEFAULT_STR, $has_replacements) {
             $fallback = isset($matches[2]) ? str_replace(
-                ['\\'.BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'], 
-                [BEGIN_REPLACE_DELIMITER, '|', '\\'], 
+                ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
+                [BEGIN_REPLACE_DELIMITER, '|', '\\'],
                 $matches[2]
             ) : null;
 
@@ -210,27 +228,27 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
         // filter section if given
         if ($data[2]) {
-            $getSection = $this->_getSection($data[2], $instr);
-            
+            $getSection = $this->getSection($data[2], $instr);
+
             $instr = $getSection[0];
-            
-            if(!is_null($getSection[1])) {
+
+            if (!is_null($getSection[1])) {
                 $renderer->doc .= sprintf($getSection[1], $data[2]);
                 $renderer->internalLink($data[0]);
                 $renderer->doc .= '.<br/><br/></div>';
             }
         }
-        
+
         // correct relative internal links and media
-        $instr = $this->_correctRelNS($instr, $data[0]);
-        
+        $instr = $this->correctRelNS($instr, $data[0]);
+
         // doesn't show the heading for each template if {{template>page#section}}
         if (sizeof($instr) > 0 && !isset($getSection[1])) {
             if (array_key_exists(0, $instr[0][1]) && strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
                 $instr[0][1][0] = null;
             }
         }
-        
+
         // render the instructructions on the fly
         $text = p_render('xhtml', $instr, $info);
 
@@ -242,7 +260,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         $text = preg_replace($patterns, $replace, $text);
 
         // prevent caching to ensure the included page is always fresh
-        $renderer->info['cache'] = FALSE;
+        $renderer->info['cache'] = false;
 
         // embed the included page
         $renderer->doc .= '<div class="templater">';
@@ -256,14 +274,14 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
     /**
      * Get a section including its subsections
      */
-    function _getSection($title, $instructions) {
+    public function getSection($title, $instructions)
+    {
         $i = (array) null;
         $level = null;
         $no_section = null;
-        
+
         foreach ($instructions as $instruction) {
             if ($instruction[0] == 'header') {
-                
                 // found the right header
                 if (cleanID($instruction[1][0]) == $title) {
                     $level = $instruction[1][1];
@@ -282,23 +300,24 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
                 if (isset($level) && isset($i)) {
                     $i[] = $instruction;
                 }
-            } 
+            }
         }
-        
+
         // Fix for when page#section doesn't exist
-        if(sizeof($i) == 0) {
+        if (sizeof($i) == 0) {
             $no_section_begin = '<div class="templater">— ';
             $no_section_end = $this->getLang('no_such_section');
             $no_section = $no_section_begin . $no_section_end . ' ';
         }
-        
+
         return array($i,$no_section);
     }
 
     /**
      * Corrects relative internal links and media
      */
-    function _correctRelNS($instr, $incl) {
+    public function correctRelNS($instr, $incl)
+    {
         global $ID;
 
         // check if included page is in same namespace
@@ -308,52 +327,54 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
 
         // convert internal links and media from relative to absolute
         $n = count($instr);
-        for($i = 0; $i < $n; $i++) {
+        for ($i = 0; $i < $n; $i++) {
             if (substr($instr[$i][0], 0, 8) != 'internal')
                 continue;
 
             // relative subnamespace
             if ($instr[$i][1][0][0] == '.') {
-                $instr[$i][1][0] = $iNS.':'.substr($instr[$i][1][0], 1);
+                $instr[$i][1][0] = $iNS . ':' . substr($instr[$i][1][0], 1);
 
             // relative link
-            } else if (strpos($instr[$i][1][0], ':') === false) {
-                $instr[$i][1][0] = $iNS.':'.$instr[$i][1][0];
+            } elseif (strpos($instr[$i][1][0], ':') === false) {
+                $instr[$i][1][0] = $iNS . ':' . $instr[$i][1][0];
             }
         }
-        
+
         return $instr;
     }
 
     /**
      * Handles the replacement array
      */
-    function _massageReplacers($replacers) {
+    public function massageReplacers($replacers)
+    {
         $r = array();
         if (is_null($replacers)) {
             $r['keys'] = null;
             $r['vals'] = null;
-        } else if (is_string($replacers)) {
-            if ( str_contains($replacers, '=') && (substr(trim($replacers), -1) != '=') ){
+        } elseif (is_string($replacers)) {
+            if (str_contains($replacers, '=')) {
                 list($k, $v) = explode('=', $replacers, 2);
-                $r['keys'] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
+                $r['keys'] = BEGIN_REPLACE_DELIMITER . trim($k) . END_REPLACE_DELIMITER;
                 $r['vals'] = trim(str_replace('\|', '|', $v));
             }
-        } else if ( is_array($replacers) ) {
-            foreach($replacers as $rep) {
-                if ( str_contains($rep, '=') && (substr(trim($rep), -1) != '=') ){
+        } elseif (is_array($replacers)) {
+            foreach ($replacers as $rep) {
+                if (str_contains($rep, '=')) {
                     list($k, $v) = explode('=', $rep, 2);
-                    $r['keys'][] = BEGIN_REPLACE_DELIMITER.trim($k).END_REPLACE_DELIMITER;
-                    if (trim($v)[0] == '"' and trim($v)[-1] == '"') {
-                        $r['vals'][] = substr(trim(str_replace('\|','|',$v)), 1, -1);
+                    $r['keys'][] = BEGIN_REPLACE_DELIMITER . trim($k) . END_REPLACE_DELIMITER;
+                    $v_trimmed = trim($v);
+                    if ($v_trimmed !== '' && $v_trimmed[0] == '"' && substr($v_trimmed, -1) == '"') {
+                        $r['vals'][] = substr(trim(str_replace('\|', '|', $v)), 1, -1);
                     } else {
-                        $r['vals'][] = trim(str_replace('\|','|',$v));
+                        $r['vals'][] = trim(str_replace('\|', '|', $v));
                     }
                 }
             }
         } else {
             // This is an assertion failure. We should NEVER get here.
-            //die("FATAL ERROR!  Unknown type passed to syntax_plugin_templater::massageReplaceMentArray() can't message syntax_plugin_templater::\$replacers!  Type is:".gettype($r)." Value is:".$r);
+            // die("FATAL ERROR! Unknown type passed to massageReplacers(). Type: " . gettype($r));
             $r['keys'] = null;
             $r['vals'] = null;
         }
