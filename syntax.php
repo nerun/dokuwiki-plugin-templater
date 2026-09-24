@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Templater Plugin: Based from the include plugin, like MediaWiki's template
  * Usage:
@@ -84,25 +83,29 @@ class syntax_plugin_templater extends SyntaxPlugin
         global $ID;
 
         $match = substr($match, 11, -2);                        // strip markup
-        $replacers = preg_split('/(?<!\\\\)\|/', $match);        // Get the replacers
+        $replacers = preg_split('/(?<!\\\\)\|/', $match);       // Get the replacers
         $wikipage = array_shift($replacers);
 
         $replacers = $this->massageReplacers($replacers);
 
-        $wikipage = preg_split('/\#/u', $wikipage, 2);                        // split hash from filename
+        $wikipage = preg_split('/\#/u', $wikipage, 2);                       // split hash from filename
         $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
         $resolver = new PageResolver(getNS($parentpage));
+        if (!isset($wikipage[0]) || trim($wikipage[0]) === '') {
+            return false;
+        }
         $wikipage[0] = $resolver->resolveId($wikipage[0]);
-        page_exists($wikipage[0]);
 
-        // check for perrmission
+        // check for permission
         if (auth_quickaclcheck($wikipage[0]) < 1)
             return false;
 
-        // $wikipage[1] is the header of a template enclosed within a section {{template>page#section}}
-        // Not all template calls will be {{template>page#section}}, some will be {{template>page}}
-        // It fix "Undefined array key 1" warning
+        /**
+         * $wikipage[1] is the header of a template enclosed within a section {{template>page#section}}
+         * Not all template calls will be {{template>page#section}}, some will be {{template>page}}
+         * It fix "Undefined array key 1" warning
+         */
         if (array_key_exists(1, $wikipage)) {
             $section = cleanID($wikipage[1]);
         } else {
@@ -175,26 +178,32 @@ class syntax_plugin_templater extends SyntaxPlugin
                     $default_str_set = true;
                 }
 
-                // Emulate str_replace but supporting fallbacks
-                // It replaces @key@ or @key|fallback@ with the passed value
-                // We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                /**
+                 * Emulate str_replace but supporting fallbacks
+                 * It replaces @key@ or @key|fallback@ with the passed value
+                 * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                 */
                 $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
                     . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
                     . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
 
-                // We use preg_replace_callback instead of preg_replace to ensure the value is treated
-                // as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
+                /**
+                 * We use preg_replace_callback instead of preg_replace to ensure the value is treated
+                 * as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
+                 */
                 $rawFile = preg_replace_callback($pattern, fn($matches) => $val, $rawFile);
             }
         }
 
-        // Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
-        // We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails
-        // (e.g. alice@example.org and bob@example.org).
-        // Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
-        // Literal '@' inside the fallback can be escaped with '\@'
+        /**
+         * Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
+         * We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails
+         * (e.g. alice@example.org and bob@example.org).
+         * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
+         * Literal '@' inside the fallback can be escaped with '\@'
+         */
         $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
@@ -288,7 +297,7 @@ class syntax_plugin_templater extends SyntaxPlugin
                     if (isset($level) && isset($i)) {
                         if ($instruction[1][1] > $level) {
                             $i[] = $instruction;
-                // next header of the same level or higher -> exit
+                        // next header of the same level or higher -> exit
                         } else {
                             return [$i,null];
                         }
@@ -371,8 +380,10 @@ class syntax_plugin_templater extends SyntaxPlugin
                 }
             }
         } else {
-            // This is an assertion failure. We should NEVER get here.
-            // die("FATAL ERROR! Unknown type passed to massageReplacers(). Type: " . gettype($r));
+            /**
+             * This is an assertion failure. We should NEVER get here.
+             * die("FATAL ERROR! Unknown type passed to massageReplacers(). Type: " . gettype($r));
+             */
             $r['keys'] = null;
             $r['vals'] = null;
         }
