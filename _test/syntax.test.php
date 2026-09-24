@@ -125,4 +125,13 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dup_def|x=OK|DEFAULT_STR=|DEFAULT_STR=Second}}'), $info);
         $this->assertStringContainsString('A: </p>', $xhtml);
     }
+
+    public function test_ignore_double_delimiters() {
+        // Bureaucracy syntax (@@foo@@) should not be processed or destroyed by templater.
+        saveWikiText('test_bureaucracy', 'A: @@foo@@, B: @@foo|bar@@', 'Test setup');
+        
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_bureaucracy|foo=replaced}}'), $info);
+        $this->assertStringContainsString('A: @@foo@@', $xhtml);
+        $this->assertStringContainsString('B: @@foo|bar@@', $xhtml);
+    }
 }

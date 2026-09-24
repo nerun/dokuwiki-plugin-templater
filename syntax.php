@@ -168,7 +168,8 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
                 
                 // Emulate str_replace but supporting fallbacks
                 // It replaces @key@ or @key|fallback@ with the passed value
-                $pattern = '/'.preg_quote(BEGIN_REPLACE_DELIMITER.$inner_key, '/').'(?:\|(?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*)?'.preg_quote(END_REPLACE_DELIMITER, '/').'/';
+                // We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                $pattern = '/(?<!'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').')'.preg_quote(BEGIN_REPLACE_DELIMITER.$inner_key, '/').'(?:\|(?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*)?'.preg_quote(END_REPLACE_DELIMITER, '/').'(?!'.preg_quote(END_REPLACE_DELIMITER, '/').')/';
                 
                 // We use preg_replace_callback instead of preg_replace to ensure the value is treated 
                 // as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
@@ -182,7 +183,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
         // We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails (e.g. alice@example.org and bob@example.org).
         // Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
         // Literal '@' inside the fallback can be escaped with '\@'
-        $pattern = '/'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'([\w\-.]+)(?:\|((?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'/';
+        $pattern = '/(?<!'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').')'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'([\w\-.]+)(?:\|((?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'(?!'.preg_quote(END_REPLACE_DELIMITER, '/').')/';
 
         $rawFile = preg_replace_callback($pattern, function($matches) use ($DEFAULT_STR, $has_replacements) {
             $fallback = isset($matches[2]) ? str_replace(
