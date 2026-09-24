@@ -39,14 +39,32 @@ class action_plugin_templater_move extends ActionPlugin
         $page = $m[2];
         $suffix = $m[3];
 
-        if (method_exists($handler, 'adaptRelativeId')) { // move plugin before version 2015-05-16
-            $newpage = $handler->adaptRelativeId($page);
-        } else {
-            $newpage = $handler->resolveMoves($page, 'page');
-            $newpage = $handler->relativeLink($page, $newpage, 'page');
+        // Forward-compatibility with the default namespace feature (from feat/backport-yatp-features)
+        $syntax = plugin_load('syntax', 'templater');
+        $defaultNamespace = ($syntax && method_exists($syntax, 'getConf')) ? $syntax->getConf('namespace') : '';
+
+        $resolvedPage = $page;
+        if (!empty($defaultNamespace) && !preg_match('/^[:.]/', $page)) {
+            $resolvedPage = $defaultNamespace . ':' . $page;
         }
 
-        if ($newpage == $page) {
+        if (method_exists($handler, 'adaptRelativeId')) { // move plugin before version 2015-05-16
+            $newpage = $handler->adaptRelativeId($resolvedPage);
+        } else {
+            $newpage = $handler->resolveMoves($resolvedPage, 'page');
+            $newpage = $handler->relativeLink($resolvedPage, $newpage, 'page');
+        }
+
+        // If the link was resolved using the default namespace, and the new page is still in that namespace,
+        // we can strip the namespace prefix to keep the syntax clean.
+        if (!empty($defaultNamespace) && strpos($newpage, $defaultNamespace . ':') === 0) {
+            $clean_newpage = substr($newpage, strlen($defaultNamespace) + 1);
+            if (strpos($clean_newpage, ':') === false) {
+                $newpage = $clean_newpage;
+            }
+        }
+
+        if ($newpage == $resolvedPage || $newpage == $page) {
             return $match;
         } else {
             return $prefix . $newpage . $suffix;
