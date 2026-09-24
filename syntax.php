@@ -274,7 +274,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
     /**
      * Get a section including its subsections
      */
-    public function getSection($title, $instructions)
+    protected function getSection($title, $instructions)
     {
         $i = (array) null;
         $level = null;
@@ -316,7 +316,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
     /**
      * Corrects relative internal links and media
      */
-    public function correctRelNS($instr, $incl)
+    protected function correctRelNS($instr, $incl)
     {
         global $ID;
 
@@ -347,7 +347,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
     /**
      * Handles the replacement array
      */
-    public function massageReplacers($replacers)
+    protected function massageReplacers($replacers)
     {
         $r = array();
         if (is_null($replacers)) {
