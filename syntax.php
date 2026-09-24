@@ -163,7 +163,10 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
                 // We strip the '@' characters from both ends to extract just 'name'.
                 $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
                 // Using our index $i, $data[1]['vals'][$i] retrieves 'John'.
-                $replacements[$inner_key] = $data[1]['vals'][$i];
+                // Duplicate parameters should respect the first provided value
+                if (!array_key_exists($inner_key, $replacements)) {
+                    $replacements[$inner_key] = $data[1]['vals'][$i];
+                }
             }
 
             // DEFAULT_STR is a special parameter you can pass to the template (e.g. {{template>page|DEFAULT_STR=Unknown}})
@@ -173,34 +176,59 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin {
             }
         }
 
+        // Build a regex pattern that matches either an explicitly provided key or a strict identifier ([\w\-.]+)
+        // This prevents ordinary text (like alice@example.org) from accidentally being consumed across lines.
+        $keys = array_keys($replacements);
+        $literal_keys = array_map(function($k) { return preg_quote($k, '/'); }, $keys);
+        usort($literal_keys, function($a, $b) { return strlen($b) - strlen($a); });
+        
+        $key_pattern = '[\w\-.]+';
+        if (!empty($literal_keys)) {
+            $key_pattern = '(?:' . implode('|', $literal_keys) . '|' . $key_pattern . ')';
+        }
+
         // Regex matches variables with optional fallbacks using the format @key@ or @key|fallback@ inside the destination template page.
-        $pattern = '/'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'([^'.preg_quote(BEGIN_REPLACE_DELIMITER.'|', '/').']+)(?:\|([^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').']*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'/';
+        // Literal '@' inside the fallback can be escaped with '\@'
+        $pattern = '/'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'(' . $key_pattern . ')(?:\|((?:[^'.preg_quote(BEGIN_REPLACE_DELIMITER, '/').'\r\n\\\\]|\\\\.)*))?'.preg_quote(END_REPLACE_DELIMITER, '/').'/';
 
-        $rawFile = preg_replace_callback($pattern, function($matches) use ($replacements, $DEFAULT_STR, $has_replacements) {
-            $key = trim($matches[1]);
+        // Apply replacements iteratively (multi-pass) up to 10 times to support nested substitutions (e.g. a=@b@|b=Hello)
+        for ($pass = 0; $pass < 10; $pass++) {
+            $newRawFile = preg_replace_callback($pattern, function($matches) use ($replacements, $DEFAULT_STR, $has_replacements) {
+                $key = trim($matches[1]);
+                $fallback = isset($matches[2]) ? str_replace(
+                    ['\\'.BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'], 
+                    [BEGIN_REPLACE_DELIMITER, '|', '\\'], 
+                    $matches[2]
+                ) : null;
 
-            // If a value was explicitly passed in the template call, use it.
-            // Example: @foo@ or @foo|fallback@ -> Replaced by the provided value of 'foo'.
-            if (array_key_exists($key, $replacements)) {
-                return $replacements[$key];
+                // If a value was explicitly passed in the template call, use it.
+                // Example: @foo@ or @foo|fallback@ -> Replaced by the provided value of 'foo'.
+                if (array_key_exists($key, $replacements)) {
+                    return $replacements[$key];
+                }
+
+                // If a fallback is provided in the template file and no value was passed, use the fallback.
+                // Example: @foo|fallback@ -> Replaced by 'fallback' if 'foo' is missing.
+                // Example: @foo|@         -> Replaced by empty string if 'foo' is missing (hides the variable).
+                if ($fallback !== null) {
+                    return $fallback;
+                }
+
+                // Otherwise, use DEFAULT_STR, but only if the user passed parameters (legacy behavior).
+                // Example: @foo@ -> Replaced by DEFAULT_STR (often "") if $has_replacements is true.
+                if ($has_replacements) {
+                    return $DEFAULT_STR;
+                }
+
+                // Leave the variable intact on the page if no replacements were provided
+                return $matches[0];
+            }, $rawFile);
+
+            if ($newRawFile === $rawFile) {
+                break;
             }
-
-            // If a fallback is provided in the template file and no value was passed, use the fallback.
-            // Example: @foo|fallback@ -> Replaced by 'fallback' if 'foo' is missing.
-            // Example: @foo|@         -> Replaced by empty string if 'foo' is missing (hides the variable).
-            if (isset($matches[2])) {
-                return $matches[2];
-            }
-
-            // Otherwise, use DEFAULT_STR, but only if the user passed parameters (legacy behavior).
-            // Example: @foo@ -> Replaced by DEFAULT_STR (often "") if $has_replacements is true.
-            if ($has_replacements) {
-                return $DEFAULT_STR;
-            }
-
-            // Leave the variable intact on the page if no replacements were provided
-            return $matches[0];
-        }, $rawFile);
+            $rawFile = $newRawFile;
+        }
 
         $instr = p_get_instructions($rawFile);
 
