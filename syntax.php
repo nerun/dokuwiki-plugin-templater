@@ -26,6 +26,8 @@
  *                 Eduardo Mozart de Oliveira <github.com/eduardomozart>
  */
 
+use dokuwiki\Extension\SyntaxPlugin;
+use dokuwiki\Parsing\Handler;
 use dokuwiki\File\PageResolver;
 
 define('BEGIN_REPLACE_DELIMITER', '@');
@@ -35,7 +37,7 @@ define('END_REPLACE_DELIMITER', '@');
  * All DokuWiki plugins to extend the parser/rendering mechanism
  * need to inherit from this class
  */
-class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
+class syntax_plugin_templater extends SyntaxPlugin
 {
     /**
      * What kind of syntax are we?
@@ -47,7 +49,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
 
     public function getAllowedTypes()
     {
-        return array('container', 'substition', 'protected', 'disabled', 'formatting');
+        return ['container', 'substition', 'protected', 'disabled', 'formatting'];
     }
 
     /**
@@ -77,7 +79,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
     /**
      * Handle the match
      */
-    public function handle($match, $state, $pos, Doku_Handler $handler)
+    public function handle($match, $state, $pos, Handler $handler)
     {
         global $ID;
 
@@ -92,7 +94,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
         // resolve shortcuts:
         $resolver = new PageResolver(getNS($parentpage));
         $wikipage[0] = $resolver->resolveId($wikipage[0]);
-        $exists = page_exists($wikipage[0]);
+        page_exists($wikipage[0]);
 
         // check for perrmission
         if (auth_quickaclcheck($wikipage[0]) < 1)
@@ -107,10 +109,10 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
             $section = null;
         }
 
-        return array($wikipage[0], $replacers, $section);
+        return [$wikipage[0], $replacers, $section];
     }
 
-    private static $pagestack = array(); // keep track of recursing template renderings
+    private static $pagestack = []; // keep track of recursing template renderings
 
     /**
      * Create output
@@ -141,7 +143,8 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
             $renderer->doc .= '<br/><br/></div>';
             $renderer->info['cache'] = false;
             return true;
-        } elseif (array_search($data[0], self::$pagestack) !== false) {
+        }
+        if (in_array($data[0], self::$pagestack)) {
             $renderer->doc .= '<div class="templater">— ';
             $renderer->doc .= $this->getLang('processing_template');
             $renderer->doc .= ' ';
@@ -155,8 +158,6 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
 
         // Get the raw file, and parse it into its instructions. This could be cached... maybe.
         $rawFile = io_readfile($file);
-
-        $replacements = array();
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
@@ -185,9 +186,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
 
                 // We use preg_replace_callback instead of preg_replace to ensure the value is treated
                 // as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
-                $rawFile = preg_replace_callback($pattern, function ($matches) use ($val) {
-                    return $val;
-                }, $rawFile);
+                $rawFile = preg_replace_callback($pattern, fn($matches) => $val, $rawFile);
             }
         }
 
@@ -242,7 +241,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
         $instr = $this->correctRelNS($instr, $data[0]);
 
         // doesn't show the heading for each template if {{template>page#section}}
-        if (sizeof($instr) > 0 && !isset($getSection[1])) {
+        if (count($instr) > 0 && !isset($getSection[1])) {
             if (array_key_exists(0, $instr[0][1]) && strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
                 $instr[0][1][0] = null;
             }
@@ -252,10 +251,10 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
         $text = p_render('xhtml', $instr, $info);
 
         // remove toc, section edit buttons and category tags
-        $patterns = array('!<div class="toc">.*?(</div>\n</div>)!s',
+        $patterns = ['!<div class="toc">.*?(</div>\n</div>)!s',
                           '#<!-- SECTION \[(\d*-\d*)\] -->#',
-                          '!<div class="category">.*?</div>!s');
-        $replace  = array('', '', '');
+                          '!<div class="category">.*?</div>!s'];
+        $replace  = ['', '', ''];
         $text = preg_replace($patterns, $replace, $text);
 
         // prevent caching to ensure the included page is always fresh
@@ -291,7 +290,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
                             $i[] = $instruction;
                 // next header of the same level or higher -> exit
                         } else {
-                            return array($i,null);
+                            return [$i,null];
                         }
                     }
                 }
@@ -303,13 +302,13 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
         }
 
         // Fix for when page#section doesn't exist
-        if (sizeof($i) == 0) {
+        if (count($i) == 0) {
             $no_section_begin = '<div class="templater">— ';
             $no_section_end = $this->getLang('no_such_section');
             $no_section = $no_section_begin . $no_section_end . ' ';
         }
 
-        return array($i,$no_section);
+        return [$i,$no_section];
     }
 
     /**
@@ -327,7 +326,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
         // convert internal links and media from relative to absolute
         $n = count($instr);
         for ($i = 0; $i < $n; $i++) {
-            if (substr($instr[$i][0], 0, 8) != 'internal')
+            if (!str_starts_with($instr[$i][0], 'internal'))
                 continue;
 
             // relative subnamespace
@@ -335,7 +334,7 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
                 $instr[$i][1][0] = $iNS . ':' . substr($instr[$i][1][0], 1);
 
             // relative link
-            } elseif (strpos($instr[$i][1][0], ':') === false) {
+            } elseif (!str_contains($instr[$i][1][0], ':')) {
                 $instr[$i][1][0] = $iNS . ':' . $instr[$i][1][0];
             }
         }
@@ -348,23 +347,23 @@ class syntax_plugin_templater extends DokuWiki_Syntax_Plugin
      */
     protected function massageReplacers($replacers)
     {
-        $r = array();
+        $r = [];
         if (is_null($replacers)) {
             $r['keys'] = null;
             $r['vals'] = null;
         } elseif (is_string($replacers)) {
             if (str_contains($replacers, '=')) {
-                list($k, $v) = explode('=', $replacers, 2);
+                [$k, $v] = explode('=', $replacers, 2);
                 $r['keys'] = BEGIN_REPLACE_DELIMITER . trim($k) . END_REPLACE_DELIMITER;
                 $r['vals'] = trim(str_replace('\|', '|', $v));
             }
         } elseif (is_array($replacers)) {
             foreach ($replacers as $rep) {
                 if (str_contains($rep, '=')) {
-                    list($k, $v) = explode('=', $rep, 2);
+                    [$k, $v] = explode('=', $rep, 2);
                     $r['keys'][] = BEGIN_REPLACE_DELIMITER . trim($k) . END_REPLACE_DELIMITER;
                     $v_trimmed = trim($v);
-                    if ($v_trimmed !== '' && $v_trimmed[0] == '"' && substr($v_trimmed, -1) == '"') {
+                    if ($v_trimmed !== '' && $v_trimmed[0] == '"' && str_ends_with($v_trimmed, '"')) {
                         $r['vals'][] = substr(trim(str_replace('\|', '|', $v)), 1, -1);
                     } else {
                         $r['vals'][] = trim(str_replace('\|', '|', $v));
