@@ -44,6 +44,17 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringContainsString('Owner: Bob', $xhtml);
     }
 
+    public function test_email_link_corruption() {
+        // Prevent email addresses with domains inside links from matching the variable fallback regex
+        // (Because if variable names allowed dots, @example.com|atendimento@ would match the fallback syntax)
+        saveWikiText('test_email_link', 'Link: [[mailto:atendimento@example.com|atendimento@example.com]]', 'Test setup');
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_email_link|name=Bob}}'), $info);
+        
+        $this->assertStringContainsString('atendimento@example.com', $xhtml);
+        // It should NOT output atendimentoatendimentoexample.com
+        $this->assertStringNotContainsString('atendimentoatendimentoexample.com', $xhtml);
+    }
+
     public function test_literal_at_in_fallback() {
         // Escaped @ characters should become literal and NOT become active on subsequent passes
         saveWikiText('test_at', 'Email: @x|\@name\@@', 'Test setup');

@@ -206,7 +206,7 @@ class syntax_plugin_templater extends SyntaxPlugin
          * Literal '@' inside the fallback can be escaped with '\@'
          */
         $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
-            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-]+)(?:\|((?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
             . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
             . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
