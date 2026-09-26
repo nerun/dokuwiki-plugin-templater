@@ -316,7 +316,7 @@ class syntax_plugin_templater extends SyntaxPlugin
                 $renderer->nest($instr);
             } else {
                 foreach ($instr as $instruction) {
-                    $args = $instruction[1] ? $instruction[1] : [];
+                    $args = $instruction[1] ?: [];
                     call_user_func_array([$renderer, $instruction[0]], $args);
                 }
             }
