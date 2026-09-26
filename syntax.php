@@ -124,38 +124,54 @@ class syntax_plugin_templater extends SyntaxPlugin
      */
     public function render($mode, Doku_Renderer $renderer, $data)
     {
-        if ($mode != 'xhtml')
+        if ($mode != 'xhtml' && $mode != 'odt')
             return false;
 
         if ($data[0] === false) {
             // False means no permissions
-            $renderer->doc .= '<div class="templater"> ';
-            $renderer->doc .= $this->getLang('no_permissions_view');
-            $renderer->doc .= ' </div>';
+            if ($mode == 'xhtml') {
+                $renderer->doc .= '<div class="templater"> ';
+                $renderer->doc .= $this->getLang('no_permissions_view');
+                $renderer->doc .= ' </div>';
+            } else {
+                $renderer->cdata($this->getLang('no_permissions_view'));
+            }
             $renderer->info['cache'] = false;
             return true;
         }
 
         $file = wikiFN($data[0]);
         if (!@file_exists($file)) {
-            $renderer->doc .= '<div class="templater">— ';
-            $renderer->doc .= $this->getLang('template');
-            $renderer->doc .= ' ';
-            $renderer->internalLink($data[0]);
-            $renderer->doc .= ' ';
-            $renderer->doc .= $this->getLang('not_found');
-            $renderer->doc .= '<br/><br/></div>';
+            if ($mode == 'xhtml') {
+                $renderer->doc .= '<div class="templater">— ';
+                $renderer->doc .= $this->getLang('template');
+                $renderer->doc .= ' ';
+                $renderer->internalLink($data[0]);
+                $renderer->doc .= ' ';
+                $renderer->doc .= $this->getLang('not_found');
+                $renderer->doc .= '<br/><br/></div>';
+            } else {
+                $renderer->cdata('— ' . $this->getLang('template') . ' ');
+                $renderer->internalLink($data[0]);
+                $renderer->cdata(' ' . $this->getLang('not_found'));
+            }
             $renderer->info['cache'] = false;
             return true;
         }
         if (in_array($data[0], self::$pagestack)) {
-            $renderer->doc .= '<div class="templater">— ';
-            $renderer->doc .= $this->getLang('processing_template');
-            $renderer->doc .= ' ';
-            $renderer->internalLink($data[0]);
-            $renderer->doc .= ' ';
-            $renderer->doc .= $this->getLang('stopped_recursion');
-            $renderer->doc .= '<br/><br/></div>';
+            if ($mode == 'xhtml') {
+                $renderer->doc .= '<div class="templater">— ';
+                $renderer->doc .= $this->getLang('processing_template');
+                $renderer->doc .= ' ';
+                $renderer->internalLink($data[0]);
+                $renderer->doc .= ' ';
+                $renderer->doc .= $this->getLang('stopped_recursion');
+                $renderer->doc .= '<br/><br/></div>';
+            } else {
+                $renderer->cdata('— ' . $this->getLang('processing_template') . ' ');
+                $renderer->internalLink($data[0]);
+                $renderer->cdata(' ' . $this->getLang('stopped_recursion'));
+            }
             return true;
         }
         self::$pagestack[] = $data[0]; // push this onto the stack
@@ -241,9 +257,14 @@ class syntax_plugin_templater extends SyntaxPlugin
             $instr = $getSection[0];
 
             if (!is_null($getSection[1])) {
-                $renderer->doc .= sprintf($getSection[1], $data[2]);
-                $renderer->internalLink($data[0]);
-                $renderer->doc .= '.<br/><br/></div>';
+                if ($mode == 'xhtml') {
+                    $renderer->doc .= sprintf($getSection[1], $data[2]);
+                    $renderer->internalLink($data[0]);
+                    $renderer->doc .= '.<br/><br/></div>';
+                } else {
+                    $renderer->cdata(strip_tags(sprintf($getSection[1], $data[2])) . '. ');
+                    $renderer->internalLink($data[0]);
+                }
             }
         }
 
@@ -251,29 +272,55 @@ class syntax_plugin_templater extends SyntaxPlugin
         $instr = $this->correctRelNS($instr, $data[0]);
 
         // doesn't show the heading for each template if {{template>page#section}}
-        if (count($instr) > 0 && !isset($getSection[1])) {
-            if (array_key_exists(0, $instr[0][1]) && strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
-                $instr[0][1][0] = null;
+        if ($data[2] && count($instr) > 0 && !isset($getSection[1])) {
+            if ($instr[0][0] === 'header' && array_key_exists(0, $instr[0][1])) {
+                if (cleanID($instr[0][1][0]) === $data[2] || strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
+                    array_shift($instr);
+                }
             }
         }
 
-        // render the instructructions on the fly
-        $text = p_render('xhtml', $instr, $info);
+        // render the instructions on the fly
+        if ($mode == 'xhtml') {
+            $text = p_render('xhtml', $instr, $info);
 
-        // remove toc, section edit buttons and category tags
-        $patterns = ['!<div class="toc">.*?(</div>\n</div>)!s',
-                          '#<!-- SECTION \[(\d*-\d*)\] -->#',
-                          '!<div class="category">.*?</div>!s'];
-        $replace  = ['', '', ''];
-        $text = preg_replace($patterns, $replace, $text);
+            // remove toc, section edit buttons and category tags
+            $patterns = ['!<div class="toc">.*?(</div>\n</div>)!s',
+                         '#<!-- SECTION \[(\d*-\d*)\] -->#',
+                         '!<div class="category">.*?</div>!s'];
+            $replace  = ['', '', ''];
+            $text = preg_replace($patterns, $replace, $text);
 
-        // prevent caching to ensure the included page is always fresh
-        $renderer->info['cache'] = false;
+            // prevent caching to ensure the included page is always fresh
+            $renderer->info['cache'] = false;
 
-        // embed the included page
-        $renderer->doc .= '<div class="templater">';
-        $renderer->doc .= $text;
-        $renderer->doc .= '</div>';
+            // embed the included page
+            $renderer->doc .= '<div class="templater">';
+            $renderer->doc .= $text;
+            $renderer->doc .= '</div>';
+        } else {
+            // For ODT or other formats, feed instructions to the current renderer directly
+            $renderer->info['cache'] = false;
+
+            // Strip document_start and document_end so we don't break the parent document
+            $cleaned_instr = [];
+            foreach ($instr as $instruction) {
+                if (in_array($instruction[0], ['document_start', 'document_end', 'section_edit'], true)) {
+                    continue;
+                }
+                $cleaned_instr[] = $instruction;
+            }
+            $instr = $cleaned_instr;
+
+            if (method_exists($renderer, 'nest')) {
+                $renderer->nest($instr);
+            } else {
+                foreach ($instr as $instruction) {
+                    $args = $instruction[1] ? $instruction[1] : [];
+                    call_user_func_array([$renderer, $instruction[0]], $args);
+                }
+            }
+        }
 
         array_pop(self::$pagestack); // pop off the stack when done
         return true;
