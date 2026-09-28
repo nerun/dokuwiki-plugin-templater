@@ -128,6 +128,24 @@ class syntax_plugin_templater extends SyntaxPlugin
      */
     public function render($mode, Doku_Renderer $renderer, $data)
     {
+        if ($mode == 'metadata') {
+            // Register the included template itself as a reference
+            $renderer->internalLink($data[0]);
+
+            $processed = $this->getProcessedInstructions($data);
+            if ($processed !== false) {
+                list($instr, $error) = $processed;
+                if (is_null($error)) {
+                    foreach ($instr as $instruction) {
+                        if ($instruction[0] === 'internallink') {
+                            $renderer->internalLink($instruction[1][0]);
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
         if ($mode != 'xhtml' && $mode != 'odt')
             return false;
 
@@ -180,7 +198,94 @@ class syntax_plugin_templater extends SyntaxPlugin
         }
         self::$pagestack[] = $data[0]; // push this onto the stack
 
-        // Get the raw file, and parse it into its instructions. This could be cached... maybe.
+        $processed = $this->getProcessedInstructions($data);
+        if ($processed === false) {
+            array_pop(self::$pagestack);
+            return true;
+        }
+
+        list($instr, $getSection1) = $processed;
+
+        if ($data[2] && !is_null($getSection1)) {
+            if ($mode == 'xhtml') {
+                $renderer->doc .= sprintf($getSection1, $data[2]);
+                $renderer->internalLink($data[0]);
+                $renderer->doc .= '.<br/><br/></div>';
+            } else {
+                $renderer->cdata(strip_tags(sprintf($getSection1, $data[2])) . '. ');
+                $renderer->internalLink($data[0]);
+            }
+        }
+
+        // doesn't show the heading for each template if {{template>page#section}}
+        if ($data[2] && count($instr) > 0 && !isset($getSection[1])) {
+            if ($instr[0][0] === 'header' && array_key_exists(0, $instr[0][1])) {
+                if (cleanID($instr[0][1][0]) === $data[2] || strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
+                    array_shift($instr);
+                }
+            }
+        }
+
+        // render the instructions on the fly
+        if ($mode == 'xhtml') {
+            $text = p_render('xhtml', $instr, $info);
+
+            // remove toc, section edit buttons and category tags
+            $patterns = ['!<div class="toc">.*?(</div>\n</div>)!s',
+                         '#<!-- SECTION \[(\d*-\d*)\] -->#',
+                         '!<div class="category">.*?</div>!s'];
+            $replace  = ['', '', ''];
+            $text = preg_replace($patterns, $replace, $text);
+
+            // prevent caching to ensure the included page is always fresh
+            $renderer->info['cache'] = false;
+
+            // embed the included page
+            $renderer->doc .= '<div class="templater">';
+            $renderer->doc .= $text;
+            $renderer->doc .= '</div>';
+        } else {
+            // For ODT or other formats, feed instructions to the current renderer directly
+            $renderer->info['cache'] = false;
+
+            // Strip document_start and document_end so we don't break the parent document
+            $cleaned_instr = [];
+            foreach ($instr as $instruction) {
+                if (in_array($instruction[0], ['document_start', 'document_end', 'section_edit'], true)) {
+                    continue;
+                }
+                $cleaned_instr[] = $instruction;
+            }
+            $instr = $cleaned_instr;
+
+            if (method_exists($renderer, 'nest')) {
+                $renderer->nest($instr);
+            } else {
+                foreach ($instr as $instruction) {
+                    $args = $instruction[1] ?: [];
+                    call_user_func_array([$renderer, $instruction[0]], $args);
+                }
+            }
+        }
+
+        array_pop(self::$pagestack); // pop off the stack when done
+        return true;
+    }
+
+    /**
+     * Get processed instructions for the given template data
+     * Parses the template file, applies placeholder replacements, and extracts sections
+     *
+     * @param array $data The parsed template data from handle()
+     * @return array|false An array containing [$instructions, $sectionError] or false if file not found
+     */
+    public function getProcessedInstructions($data)
+    {
+        $file = wikiFN($data[0]);
+        if (!@file_exists($file)) {
+            return false;
+        }
+
         $rawFile = io_readfile($file);
         // handle noinclude and includeonly tags (backported from yatp)
         $rawFile = preg_replace('/<noinclude>.*?<\/noinclude>/is', '', $rawFile);
@@ -256,81 +361,16 @@ class syntax_plugin_templater extends SyntaxPlugin
         }, $rawFile);
 
         $instr = p_get_instructions($rawFile);
+        $sectionError = null;
 
         // filter section if given
         if ($data[2]) {
             $getSection = $this->getSection($data[2], $instr);
-
             $instr = $getSection[0];
-
-            if (!is_null($getSection[1])) {
-                if ($mode == 'xhtml') {
-                    $renderer->doc .= sprintf($getSection[1], $data[2]);
-                    $renderer->internalLink($data[0]);
-                    $renderer->doc .= '.<br/><br/></div>';
-                } else {
-                    $renderer->cdata(strip_tags(sprintf($getSection[1], $data[2])) . '. ');
-                    $renderer->internalLink($data[0]);
-                }
-            }
+            $sectionError = $getSection[1];
         }
 
-        // correct relative internal links and media
-        $instr = $this->correctRelNS($instr, $data[0]);
-
-        // doesn't show the heading for each template if {{template>page#section}}
-        if ($data[2] && count($instr) > 0 && !isset($getSection[1])) {
-            if ($instr[0][0] === 'header' && array_key_exists(0, $instr[0][1])) {
-                if (cleanID($instr[0][1][0]) === $data[2] || strcasecmp(trim($instr[0][1][0]), $data[2]) === 0) {
-                    array_shift($instr);
-                }
-            }
-        }
-
-        // render the instructions on the fly
-        if ($mode == 'xhtml') {
-            $text = p_render('xhtml', $instr, $info);
-
-            // remove toc, section edit buttons and category tags
-            $patterns = ['!<div class="toc">.*?(</div>\n</div>)!s',
-                         '#<!-- SECTION \[(\d*-\d*)\] -->#',
-                         '!<div class="category">.*?</div>!s'];
-            $replace  = ['', '', ''];
-            $text = preg_replace($patterns, $replace, $text);
-
-            // prevent caching to ensure the included page is always fresh
-            $renderer->info['cache'] = false;
-
-            // embed the included page
-            $renderer->doc .= '<div class="templater">';
-            $renderer->doc .= $text;
-            $renderer->doc .= '</div>';
-        } else {
-            // For ODT or other formats, feed instructions to the current renderer directly
-            $renderer->info['cache'] = false;
-
-            // Strip document_start and document_end so we don't break the parent document
-            $cleaned_instr = [];
-            foreach ($instr as $instruction) {
-                if (in_array($instruction[0], ['document_start', 'document_end', 'section_edit'], true)) {
-                    continue;
-                }
-                $cleaned_instr[] = $instruction;
-            }
-            $instr = $cleaned_instr;
-
-            if (method_exists($renderer, 'nest')) {
-                $renderer->nest($instr);
-            } else {
-                foreach ($instr as $instruction) {
-                    $args = $instruction[1] ?: [];
-                    call_user_func_array([$renderer, $instruction[0]], $args);
-                }
-            }
-        }
-
-        array_pop(self::$pagestack); // pop off the stack when done
-        return true;
+        return [$instr, $sectionError];
     }
 
     /**
