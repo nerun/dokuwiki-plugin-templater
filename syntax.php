@@ -124,8 +124,16 @@ class syntax_plugin_templater extends SyntaxPlugin
      */
     public function render($mode, Doku_Renderer $renderer, $data)
     {
-        if ($mode != 'xhtml' && $mode != 'odt')
+        if ($mode == 'metadata') {
+            if ($data !== false && !empty($data[0])) {
+                $renderer->meta['relation']['references'][$data[0]] = page_exists($data[0]);
+            }
+            return true;
+        }
+
+        if ($mode != 'xhtml' && $mode != 'odt') {
             return false;
+        }
 
         if ($data[0] === false) {
             // False means no permissions
