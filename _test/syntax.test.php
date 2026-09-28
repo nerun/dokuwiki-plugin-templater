@@ -55,6 +55,23 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringNotContainsString('atendimentoatendimentoexample.com', $xhtml);
     }
 
+    public function test_dots_in_variable_name() {
+        saveWikiText('test_dots', 'A: @user.name|Guest@, B: @user.name@', 'Test setup');
+        
+        // Without parameter, A falls back to Guest, B remains unchanged or becomes empty depending on logic.
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots}}'), $info);
+        $this->assertStringContainsString('A: Guest', $xhtml);
+        
+        // Without parameter, with DEFAULT_STR, B falls back to DEFAULT_STR
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots|DEFAULT_STR=Missing}}'), $info);
+        $this->assertStringContainsString('B: Missing', $xhtml);
+
+        // With parameter explicitly passed
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots|user.name=Bob|DEFAULT_STR=Missing}}'), $info);
+        $this->assertStringContainsString('A: Bob', $xhtml);
+        $this->assertStringContainsString('B: Bob', $xhtml);
+    }
+
     public function test_literal_at_in_fallback() {
         // Escaped @ characters should become literal and NOT become active on subsequent passes
         saveWikiText('test_at', 'Email: @x|\@name\@@', 'Test setup');
