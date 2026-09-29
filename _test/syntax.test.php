@@ -74,6 +74,25 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringContainsString('B: report-Bob', $xhtml);
     }
 
+    public function test_placeholders_in_link_targets() {
+        // Placeholders should be fully evaluated when present in link targets
+        saveWikiText('test_link_targets', 'X: [[:@page|start@]], Y: [[docs:@page|start@|Label]]', 'Test setup');
+
+        // Without parameter, fallback (start) is used
+        // Since there is no explicit label, X uses 'start' as target and 'start' as label depending on Dokuwiki
+        // Actually, since [[:start]] has no label, it links to start
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_link_targets}}'), $info);
+        $this->assertStringContainsString('href="/doku.php?id=start"', $xhtml);
+        $this->assertStringContainsString('href="/doku.php?id=docs:start"', $xhtml);
+        $this->assertStringNotContainsString('@page|start@', $xhtml);
+
+        // With parameter passed, it should use the parameter
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_link_targets|page=custom}}'), $info);
+        $this->assertStringContainsString('href="/doku.php?id=custom"', $xhtml);
+        $this->assertStringContainsString('href="/doku.php?id=docs:custom"', $xhtml);
+        $this->assertStringNotContainsString('start', $xhtml);
+    }
+
     public function test_literal_at_in_fallback() {
         // Escaped @ characters should become literal and NOT become active on subsequent passes
         saveWikiText('test_at', 'Email: @x|\@name\@@', 'Test setup');

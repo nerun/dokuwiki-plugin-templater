@@ -202,7 +202,7 @@ class syntax_plugin_templater extends SyntaxPlugin
                  * We skip DokuWiki email links to prevent destroying links
                  * (e.g. [[mailto:alice@example.org|alice@example.org]]).
                  */
-                $pattern = '/(?:\[\[(?:mailto:)?[^@\s|\]]+@[^@\s|\]]+(?=\||\]\]))(*SKIP)(*FAIL)|'
+                $pattern = '/(?:\[\[mailto:[^@\s|\]]+@[^@\s|\]]+(?=\||\]\]))(*SKIP)(*FAIL)|'
                     . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
@@ -224,7 +224,7 @@ class syntax_plugin_templater extends SyntaxPlugin
          * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
          * Literal '@' inside the fallback can be escaped with '\@'
          */
-        $pattern = '/(?:\[\[(?:mailto:)?[^@\s|\]]+@[^@\s|\]]+(?=\||\]\]))(*SKIP)(*FAIL)|'
+        $pattern = '/(?:\[\[mailto:[^@\s|\]]+@[^@\s|\]]+(?=\||\]\]))(*SKIP)(*FAIL)|'
             . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
