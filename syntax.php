@@ -130,7 +130,8 @@ class syntax_plugin_templater extends SyntaxPlugin
     {
         if ($mode == 'metadata') {
             // Register the included template itself as a reference
-            $renderer->internalLink($data[0]);
+            // Prefix with ':' so root-level templates are treated as absolute
+            $renderer->internalLink(':' . ltrim($data[0], ':'));
 
             $processed = $this->getProcessedInstructions($data);
             if ($processed !== false) {
@@ -288,8 +289,10 @@ class syntax_plugin_templater extends SyntaxPlugin
 
         $rawFile = io_readfile($file);
         // handle noinclude and includeonly tags (backported from yatp)
-        $rawFile = preg_replace('/<noinclude>.*?<\/noinclude>/is', '', $rawFile);
-        $rawFile = preg_replace('/<includeonly>|<\/includeonly>/i', '', $rawFile);
+        // Protect <noinclude> and <includeonly> when enclosed in literal blocks like <code> or <nowiki>
+        $protected = '<nowiki>.*?<\/nowiki>|%%.*?%%|<code\b[^>]*>.*?<\/code>|<file\b[^>]*>.*?<\/file>';
+        $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<noinclude>.*?<\/noinclude>/is", '', $rawFile);
+        $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<\/?includeonly>/i", '', $rawFile);
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
@@ -369,6 +372,9 @@ class syntax_plugin_templater extends SyntaxPlugin
             $instr = $getSection[0];
             $sectionError = $getSection[1];
         }
+
+        // correct relative internal links and media
+        $instr = $this->correctRelNS($instr, $data[0]);
 
         return [$instr, $sectionError];
     }

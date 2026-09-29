@@ -65,4 +65,36 @@ class indexer_plugin_templater_test extends DokuWikiTest {
         $this->assertArrayNotHasKey('bob', $refs);
         $this->assertArrayNotHasKey('test_tmpl_sec', $refs);
     }
+
+    public function test_cross_namespace_links() {
+        global $ID;
+        $ID = 'docs:page'; // Simulate viewing docs:page
+
+        // Create a template in the templates namespace
+        // The link [[target]] should resolve to templates:target, NOT docs:target
+        saveWikiText('templates:card', 'Link: [[target]]', 'Test setup');
+        saveWikiText('docs:page', '{{template>templates:card}}', 'Test setup');
+
+        $meta = p_get_metadata('docs:page', '', METADATA_RENDER_UNLIMITED);
+        $refs = isset($meta['relation']['references']) ? $meta['relation']['references'] : [];
+        
+        $this->assertArrayHasKey('templates:target', $refs);
+        $this->assertArrayNotHasKey('docs:target', $refs);
+    }
+
+    public function test_root_level_references() {
+        global $ID;
+        $ID = 'docs:page'; // Simulate viewing docs:page
+
+        // Include a root-level template from docs:page
+        saveWikiText('rootcard', 'Link: [[target]]', 'Test setup');
+        saveWikiText('docs:page', '{{template>:rootcard}}', 'Test setup');
+
+        $meta = p_get_metadata('docs:page', '', METADATA_RENDER_UNLIMITED);
+        $refs = isset($meta['relation']['references']) ? $meta['relation']['references'] : [];
+        
+        // The template reference itself should be absolute (rootcard) and not interpreted relative to docs:
+        $this->assertArrayHasKey('rootcard', $refs);
+        $this->assertArrayNotHasKey('docs:rootcard', $refs);
+    }
 }
