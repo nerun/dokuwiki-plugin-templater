@@ -16,4 +16,9 @@ if [[ ! -d "$odt_dir" ]]; then
     git -C "$odt_dir" checkout --detach FETCH_HEAD
 fi
 
+move_dir="${plugin_dir}/../move"
+if [[ ! -d "$move_dir" ]]; then
+    git clone --depth=1 https://github.com/michitux/dokuwiki-plugin-move.git "$move_dir"
+fi
+
 test -f "$odt_dir/renderer/page.php"

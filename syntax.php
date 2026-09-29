@@ -92,7 +92,7 @@ class syntax_plugin_templater extends SyntaxPlugin
         $wikipage = preg_split('/\#/u', $wikipage, 2);                       // split hash from filename
         $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
-        $resolver = new PageResolver(getNS($parentpage));
+        $resolver = new PageResolver($parentpage);
         if (!isset($wikipage[0]) || trim($wikipage[0]) === '') {
             return false;
         }
