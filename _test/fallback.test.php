@@ -90,4 +90,45 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         // Ensure "Guest" without "@name|" is not present, meaning it wasn't double-processed
         $this->assertStringNotContainsString('Email: Guest', $xhtml);
     }
+
+    public function test_fallback_regression_emails() {
+        global $conf;
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+
+        $text = '[[mailto:sales_@example.com|sales_@example.com]] [[mailto:sales!@example.com|sales!@example.com]]';
+        $event = new \Doku_Event('PARSER_WIKITEXT_PREPROCESS', $text);
+        
+        $plugin = plugin_load('action', 'templater_fallback');
+        $plugin->applyFallbacks($event, []);
+        
+        $this->assertEquals('[[mailto:sales_@example.com|sales_@example.com]] [[mailto:sales!@example.com|sales!@example.com]]', $event->data);
+    }
+
+    public function test_fallback_regression_protected_html() {
+        global $conf;
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+
+        $text = '<code>Literal </html> @name|Guest@</code>';
+        $event = new \Doku_Event('PARSER_WIKITEXT_PREPROCESS', $text);
+        
+        $plugin = plugin_load('action', 'templater_fallback');
+        $plugin->applyFallbacks($event, []);
+        
+        $this->assertEquals('<code>Literal </html> @name|Guest@</code>', $event->data);
+    }
+
+    public function test_fallback_regression_indented_code() {
+        global $conf;
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+
+        $text = "  @name|Guest@\nnormal @name|Guest@";
+        $event = new \Doku_Event('PARSER_WIKITEXT_PREPROCESS', $text);
+        
+        $plugin = plugin_load('action', 'templater_fallback');
+        $plugin->applyFallbacks($event, []);
+        
+        $this->assertEquals("  @name|Guest@\nnormal Guest", $event->data);
+    }
 }

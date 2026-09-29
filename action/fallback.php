@@ -39,31 +39,59 @@ class action_plugin_templater_fallback extends ActionPlugin
         $bgn = preg_quote(BEGIN_REPLACE_DELIMITER, '/');
         $end = preg_quote(END_REPLACE_DELIMITER, '/');
 
-        // Protect blocks
-        $protect = '<nowiki>.*?<\/nowiki>|%%.*?%%|<(?:code|file|php|html)(?: [^>]*)?>.*?<\/(?:code|file|php|html)>';
-
-        $p1 = '(?<!' . $bgn . ')(?<![a-zA-Z0-9])' . $bgn . '([\w\-.]+)(?:\|((?:[^' . $bgn;
-        $p2 = '\r\n\\\\]|\\\\.)*))?' . $end . '(?!' . $end . ')';
-
-        if ($enableProtected) {
-            $pattern = '/' . $p1 . $p2 . '/is';
+        // Protect standard blocks if not explicitly enabled
+        if (!$enableProtected) {
+            $protect1 = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\2>|%%.*?%%|(?:^|\n)  .*?(?=\n|$)';
         } else {
-            $pattern = '/(' . $protect . ')|' . $p1 . $p2 . '/is';
+            // Maintains the 2 capturing groups so index offsets stay consistent
+            $protect1 = '(?!)()';
         }
 
-        $event->data = preg_replace_callback($pattern, function ($matches) use ($enableProtected) {
-            if (!$enableProtected && !empty($matches[1])) {
-                return $matches[1];
+        // Always protect links and media to prevent cross-boundary fallback corruption (e.g., emails)
+        $protect2 = '\[\[.*?\]\]|\{\{.*?\}\}';
+
+        $p1 = '(?<!' . $bgn . ')' . $bgn . '([\w\-.]+)(?:\|((?:[^' . $bgn;
+        $p2 = '\r\n\\\\]|\\\\.)*))?' . $end . '(?!' . $end . ')';
+
+        // Group 1: $protect1, Group 2: tag name, Group 3: $protect2
+        // Group 4: Variable name, Group 5: Fallback
+        $pattern = '/(' . $protect1 . ')|(' . $protect2 . ')|' . $p1 . $p2 . '/is';
+
+        $event->data = preg_replace_callback($pattern, function ($matches) use ($p1, $p2) {
+            if (!empty($matches[3])) {
+                // It's a DokuWiki link or media syntax
+                $inner = substr($matches[3], 2, -2);
+                $parts = preg_split('/(?<!\\\\)\|/', $inner);
+                $linkPattern = '/' . $p1 . $p2 . '/is';
+
+                foreach ($parts as &$part) {
+                    $part = preg_replace_callback($linkPattern, function ($m) {
+                        if (isset($m[2])) {
+                            return str_replace(
+                                ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
+                                [BEGIN_REPLACE_DELIMITER, '|', '\\'],
+                                $m[2]
+                            );
+                        }
+                        return $m[0];
+                    }, $part);
+                }
+
+                $prefix = substr($matches[3], 0, 2);
+                $suffix = substr($matches[3], -2);
+                return $prefix . implode('|', $parts) . $suffix;
             }
 
-            $fallbackIndex = $enableProtected ? 2 : 3;
+            if (!empty($matches[1])) {
+                return $matches[1]; // Protect code/nowiki/etc
+            }
 
             // Only process variables that explicitly have a fallback (e.g. @var|fallback@ or @var|@)
-            if (isset($matches[$fallbackIndex])) {
+            if (isset($matches[5])) {
                 return str_replace(
                     ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
                     [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                    $matches[$fallbackIndex]
+                    $matches[5]
                 );
             }
 
