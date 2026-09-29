@@ -34,6 +34,8 @@ class action_plugin_templater_fallback extends ActionPlugin
             define('END_REPLACE_DELIMITER', '@');
         }
 
+        $enableProtected = $this->getConf('enable_direct_preview_protected');
+
         $bgn = preg_quote(BEGIN_REPLACE_DELIMITER, '/');
         $end = preg_quote(END_REPLACE_DELIMITER, '/');
 
@@ -42,19 +44,26 @@ class action_plugin_templater_fallback extends ActionPlugin
 
         $p1 = '(?<!' . $bgn . ')(?<![a-zA-Z0-9])' . $bgn . '([\w\-.]+)(?:\|((?:[^' . $bgn;
         $p2 = '\r\n\\\\]|\\\\.)*))?' . $end . '(?!' . $end . ')';
-        $pattern = '/(' . $protect . ')|' . $p1 . $p2 . '/is';
 
-        $event->data = preg_replace_callback($pattern, function ($matches) {
-            if (!empty($matches[1])) {
+        if ($enableProtected) {
+            $pattern = '/' . $p1 . $p2 . '/is';
+        } else {
+            $pattern = '/(' . $protect . ')|' . $p1 . $p2 . '/is';
+        }
+
+        $event->data = preg_replace_callback($pattern, function ($matches) use ($enableProtected) {
+            if (!$enableProtected && !empty($matches[1])) {
                 return $matches[1];
             }
 
+            $fallbackIndex = $enableProtected ? 2 : 3;
+
             // Only process variables that explicitly have a fallback (e.g. @var|fallback@ or @var|@)
-            if (isset($matches[3])) {
+            if (isset($matches[$fallbackIndex])) {
                 return str_replace(
                     ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
                     [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                    $matches[3]
+                    $matches[$fallbackIndex]
                 );
             }
 

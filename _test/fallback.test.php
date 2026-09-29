@@ -51,6 +51,20 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         $this->assertEquals('<code>@name|Guest@</code> %%@name|Guest@%% <nowiki>@name|Guest@</nowiki>', $event->data);
     }
 
+    public function test_fallback_protected_blocks_enabled() {
+        global $conf;
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 1;
+
+        $text = '<code>@name|Guest@</code> %%@name|Guest@%% <nowiki>@name|Guest@</nowiki>';
+        $event = new \Doku_Event('PARSER_WIKITEXT_PREPROCESS', $text);
+        
+        $plugin = plugin_load('action', 'templater_fallback');
+        $plugin->applyFallbacks($event, []);
+        
+        $this->assertEquals('<code>Guest</code> %%Guest%% <nowiki>Guest</nowiki>', $event->data);
+    }
+
     public function test_fallback_email_corruption() {
         global $conf;
         $conf['plugin']['templater']['enable_direct_preview'] = 1;
@@ -70,9 +84,9 @@ class fallback_plugin_templater_test extends DokuWikiTest {
 
         saveWikiText('test_fallback_double', 'Email: @name|Guest@', 'Test setup');
         
-        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_fallback_double|name=\@name|Guest\@}}'), $info);
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_fallback_double|name=\@name\|Guest\@}}'), $info);
         
-        $this->assertStringContainsString('Email: @name|Guest@', $xhtml);
+        $this->assertStringContainsString('Email: \@name|Guest\@', $xhtml);
         // Ensure "Guest" without "@name|" is not present, meaning it wasn't double-processed
         $this->assertStringNotContainsString('Email: Guest', $xhtml);
     }
