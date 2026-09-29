@@ -47,29 +47,31 @@ class syntax_plugin_templater_test extends DokuWikiTest {
     public function test_email_link_corruption() {
         // Prevent email addresses with domains inside links from matching the variable fallback regex
         // (Because if variable names allowed dots, @example.com|atendimento@ would match the fallback syntax)
-        saveWikiText('test_email_link', 'Link: [[mailto:atendimento@example.com|atendimento@example.com]]', 'Test setup');
+        saveWikiText('test_email_link', 'Link: [[mailto:atendimento@example.com|atendimento@example.com]] and [[mailto:sales!@example.com|sales!@example.com]]', 'Test setup');
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_email_link|name=Bob}}'), $info);
         
         $this->assertStringContainsString('atendimento@example.com', $xhtml);
-        // It should NOT output atendimentoatendimentoexample.com
+        $this->assertStringContainsString('sales!@example.com', $xhtml);
+        // It should NOT output atendimentoatendimentoexample.com or sales!sales!example.com
         $this->assertStringNotContainsString('atendimentoatendimentoexample.com', $xhtml);
+        $this->assertStringNotContainsString('sales!sales!example.com', $xhtml);
     }
 
     public function test_dots_in_variable_name() {
-        saveWikiText('test_dots', 'A: @user.name|Guest@, B: @user.name@', 'Test setup');
+        saveWikiText('test_dots', 'A: report-@user.name|Guest@, B: report-@user.name@', 'Test setup');
         
         // Without parameter, A falls back to Guest, B remains unchanged or becomes empty depending on logic.
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots}}'), $info);
-        $this->assertStringContainsString('A: Guest', $xhtml);
+        $this->assertStringContainsString('A: report-Guest', $xhtml);
         
         // Without parameter, with DEFAULT_STR, B falls back to DEFAULT_STR
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots|DEFAULT_STR=Missing}}'), $info);
-        $this->assertStringContainsString('B: Missing', $xhtml);
+        $this->assertStringContainsString('B: report-Missing', $xhtml);
 
         // With parameter explicitly passed
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots|user.name=Bob|DEFAULT_STR=Missing}}'), $info);
-        $this->assertStringContainsString('A: Bob', $xhtml);
-        $this->assertStringContainsString('B: Bob', $xhtml);
+        $this->assertStringContainsString('A: report-Bob', $xhtml);
+        $this->assertStringContainsString('B: report-Bob', $xhtml);
     }
 
     public function test_literal_at_in_fallback() {

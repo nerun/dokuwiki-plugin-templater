@@ -199,8 +199,9 @@ class syntax_plugin_templater extends SyntaxPlugin
                  * Emulate str_replace but supporting fallbacks
                  * It replaces @key@ or @key|fallback@ with the passed value
                  * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                 * We skip DokuWiki email links to prevent destroying links (e.g. [[mailto:alice@example.org|alice@example.org]]).
                  */
-                $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+                $pattern = '/(?:\[\[(?:mailto:)?[^@\s|\]]+@[^@\s|\]]+(?=\||\]\]))(*SKIP)(*FAIL)|(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
                     . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
@@ -216,16 +217,13 @@ class syntax_plugin_templater extends SyntaxPlugin
 
         /**
          * Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
-         * We restrict this to strict identifiers ([\w\-]+) or identifiers with dots ([\w\-.]+)
-         * if they are not immediately preceded by alphanumeric/email characters. This prevents
-         * destroying DokuWiki email links (e.g. [[mailto:alice@example.org|alice@example.org]]).
+         * We restrict this to strict identifiers ([\w\-.]+) but skip DokuWiki email links
+         * to prevent destroying links (e.g. [[mailto:alice@example.org|alice@example.org]]).
          * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
          * Literal '@' inside the fallback can be escaped with '\@'
          */
-        $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
-            . '(?|(?<![a-zA-Z0-9._%\+\-])' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)|'
-            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-]+))'
-            . '(?:\|((?:[^'
+        $pattern = '/(?:\[\[(?:mailto:)?[^@\s|\]]+@[^@\s|\]]+(?=\||\]\]))(*SKIP)(*FAIL)|(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
             . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
             . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
