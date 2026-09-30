@@ -185,7 +185,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
     }
 
     public function test_protected_literal_contexts() {
-        saveWikiText('test:test_protect', '<code><noinclude>Example</noinclude></code> and <nowiki><includeonly>Tag</includeonly></nowiki> and <file php><noinclude>Code here</noinclude></file>', 'Test setup');
+        saveWikiText('test:test_protect', "<code>\n<noinclude>Example</noinclude>\n</code> and <nowiki><includeonly>Tag</includeonly></nowiki> and <file php><noinclude>Code here</noinclude></file>", 'Test setup');
         
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect}}'), $info);
         
@@ -196,5 +196,34 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringContainsString('<noinclude>Example</noinclude>', $rawText);
         $this->assertStringContainsString('<includeonly>Tag</includeonly>', $rawText);
         $this->assertStringContainsString('<noinclude>Code here</noinclude>', $rawText);
+    }
+
+    public function test_protected_literal_contexts_variables() {
+        global $conf;
+
+        saveWikiText('test:test_protect_var', '<code>@var|Guest@</code> and <code>@passed@</code>', 'Test setup');
+
+        // Test with enable_direct_preview_protected disabled (default)
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect_var|passed=Replaced}}'), $info);
+        $rawText = html_entity_decode(strip_tags($xhtml));
+        
+        // Variables should NOT be replaced, remaining literal
+        $this->assertStringContainsString('@var|Guest@', $rawText);
+        $this->assertStringContainsString('@passed@', $rawText);
+
+        // Test with enable_direct_preview_protected enabled
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 1;
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect_var|passed=Replaced}}'), $info);
+        $rawText = html_entity_decode(strip_tags($xhtml));
+        
+        // Variables should be replaced by fallback/passed value
+        $this->assertStringContainsString('Guest', $rawText);
+        $this->assertStringContainsString('Replaced', $rawText);
+        $this->assertStringNotContainsString('@var|Guest@', $rawText);
+        $this->assertStringNotContainsString('@passed@', $rawText);
+        
+        // Restore default for other tests
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
     }
 }

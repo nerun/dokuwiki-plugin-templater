@@ -290,16 +290,16 @@ class syntax_plugin_templater extends SyntaxPlugin
         }
 
         $rawFile = io_readfile($file);
-        // handle noinclude and includeonly tags (backported from yatp)
         // Protect <noinclude> and <includeonly> when enclosed in literal blocks like <code> or <nowiki>
+        $skip_tags = '';
         if (!$this->getConf('enable_direct_preview_protected')) {
-            $protected = '<nowiki>.*?<\/nowiki>|%%.*?%%|<code\b[^>]*>.*?<\/code>|<file\b[^>]*>.*?<\/file>';
-            $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<noinclude>.*?<\/noinclude>/is", '', $rawFile);
-            $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<\/?includeonly>/i", '', $rawFile);
-        } else {
-            $rawFile = preg_replace("/<noinclude>.*?<\/noinclude>/is", '', $rawFile);
-            $rawFile = preg_replace("/<\/?includeonly>/i", '', $rawFile);
+            $protected_tags = '<(?<tag>nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\k<tag>>|%%.*?%%'
+                            . '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
+            $skip_tags = '(?:' . $protected_tags . ')(*SKIP)(*FAIL)|';
         }
+
+        $rawFile = preg_replace("/" . $skip_tags . "<noinclude>.*?<\/noinclude>/is", '', $rawFile);
+        $rawFile = preg_replace("/" . $skip_tags . "<\/?includeonly>/is", '', $rawFile);
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
@@ -310,10 +310,17 @@ class syntax_plugin_templater extends SyntaxPlugin
         // Only the target is skipped, so placeholders in the label still work.
         $email_pattern = class_exists(MailUtils::class)
             ? MailUtils::PREG_PATTERN_VALID_EMAIL : PREG_PATTERN_VALID_EMAIL;
-        $email_link_pattern = '\[\[(?:mailto:)?'
+
+        $skip_pattern = '\[\[(?:mailto:)?'
             . '(?![^@\s|\]\\\\]+@[\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||\]\]))'
             . str_replace('/', '\\/', $email_pattern)
             . '(?=\||\]\])(*SKIP)(*FAIL)|';
+
+        if (!$this->getConf('enable_direct_preview_protected')) {
+            $protected = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\1>|%%.*?%%' .
+                         '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
+            $skip_pattern .= '(?:' . $protected . ')(*SKIP)(*FAIL)|';
+        }
 
         // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
         if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
@@ -334,12 +341,12 @@ class syntax_plugin_templater extends SyntaxPlugin
                  * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
                  * We skip literal email targets to prevent matches crossing into link labels.
                  */
-                $pattern = '/' . $email_link_pattern
+                $pattern = '/' . $skip_pattern
                     . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
                     . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
-                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
+                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/is';
 
                 /**
                  * We use preg_replace_callback instead of preg_replace to ensure the value is treated
@@ -356,18 +363,18 @@ class syntax_plugin_templater extends SyntaxPlugin
          * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
          * Literal '@' inside the fallback can be escaped with '\@'
          */
-        $pattern = '/' . $email_link_pattern
+        $pattern = '/' . $skip_pattern
             . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
-            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '(?<var>[\w\-.]+)(?:\|(?<fallback>(?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
             . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
-            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
+            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/is';
 
         $rawFile = preg_replace_callback($pattern, function ($matches) use ($DEFAULT_STR, $has_replacements) {
-            $fallback = isset($matches[2]) ? str_replace(
+            $fallback = isset($matches['fallback']) ? str_replace(
                 ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
                 [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                $matches[2]
+                $matches['fallback']
             ) : null;
 
             // If a fallback is provided, use it

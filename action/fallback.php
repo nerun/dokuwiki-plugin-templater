@@ -18,7 +18,10 @@ class action_plugin_templater_fallback extends ActionPlugin
 
     public function applyFallbacks(Event $event, $params)
     {
-        if (!$this->getConf('enable_direct_preview')) {
+        $enablePreview = $this->getConf('enable_direct_preview');
+        $enableProtected = $this->getConf('enable_direct_preview_protected');
+
+        if (!$enablePreview && !$enableProtected) {
             return;
         }
 
@@ -42,60 +45,76 @@ class action_plugin_templater_fallback extends ActionPlugin
 
         // Protect standard blocks if not explicitly enabled
         if (!$enableProtected) {
-            $protect1 = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\2>|%%.*?%%' .
+            $protect1 = '<(?<tag>nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\k<tag>>|%%.*?%%' .
                         '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
         } else {
-            // Maintains the 2 capturing groups so index offsets stay consistent
+            // Empty pattern that fails to match, keeping group names valid
             $protect1 = '(?!)()';
         }
 
         // Always protect links and media to prevent cross-boundary fallback corruption (e.g., emails)
         $protect2 = '\[\[.*?\]\]|\{\{.*?\}\}';
 
-        $p1 = '(?<!' . $bgn . ')' . $bgn . '([\w\-.]+)(?:\|((?:[^' . $bgn;
+        $p1 = '(?<!' . $bgn . ')' . $bgn . '(?<var>[\w\-.]+)(?:\|(?<fallback>(?:[^' . $bgn;
         $p2 = '\r\n\\\\]|\\\\.)*))?' . $end . '(?!' . $end . ')';
 
-        // Group 1: $protect1, Group 2: tag name, Group 3: $protect2
-        // Group 4: Variable name, Group 5: Fallback
-        $pattern = '/(' . $protect1 . ')|(' . $protect2 . ')|' . $p1 . $p2 . '/is';
+        $inc = '(?<inc><includeonly>.*?<\/includeonly>)';
+        $noinc = '(?<noinc><\/?noinclude>)';
 
-        $event->data = preg_replace_callback($pattern, function ($matches) use ($p1, $p2) {
-            if (!empty($matches[3])) {
+        if ($enablePreview) {
+            $pattern = '/(?<p1>' . $protect1 . ')|(?<p2>' . $protect2 . ')|' . $p1 . $p2
+                     . '|' . $inc . '|' . $noinc . '/is';
+        } else {
+            $pattern = '/(?<p1>' . $protect1 . ')|(?<p2>' . $protect2 . ')|' . $inc . '|' . $noinc . '/is';
+        }
+
+        $event->data = preg_replace_callback($pattern, function ($matches) use ($p1, $p2, $enablePreview) {
+            if (!empty($matches['p2'])) {
+                if (!$enablePreview) {
+                    return $matches['p2'];
+                }
+
                 // It's a DokuWiki link or media syntax
-                $inner = substr($matches[3], 2, -2);
+                $inner = substr($matches['p2'], 2, -2);
                 // Skip literal emails and filenames without hiding complete fallbacks.
-                // In docs:@page|start@ and team-@address|support\@example.com@,
-                // the text following @ is a placeholder, not a literal address.
                 $literalPattern = '[^\s@|]+@(?![\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||$))'
                     . '[^\s@|]+(?=[|\]}?# ]|$)(*SKIP)(*FAIL)|';
                 $linkPattern = '/' . $literalPattern . $p1 . $p2 . '/is';
 
                 $inner = preg_replace_callback($linkPattern, function ($m) {
-                    if (isset($m[2])) {
+                    if (isset($m['fallback'])) {
                         return str_replace(
                             ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
                             [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                            $m[2]
+                            $m['fallback']
                         );
                     }
                     return $m[0];
                 }, $inner);
 
-                $prefix = substr($matches[3], 0, 2);
-                $suffix = substr($matches[3], -2);
+                $prefix = substr($matches['p2'], 0, 2);
+                $suffix = substr($matches['p2'], -2);
                 return $prefix . $inner . $suffix;
             }
 
-            if (!empty($matches[1])) {
-                return $matches[1]; // Protect code/nowiki/etc
+            if (!empty($matches['p1'])) {
+                return $matches['p1']; // Protect code/nowiki/etc
+            }
+
+            if (!empty($matches['inc'])) {
+                return ''; // Hide <includeonly> block
+            }
+
+            if (!empty($matches['noinc'])) {
+                return ''; // Strip <noinclude> tags
             }
 
             // Only process variables that explicitly have a fallback (e.g. @var|fallback@ or @var|@)
-            if (isset($matches[5])) {
+            if (isset($matches['fallback'])) {
                 return str_replace(
                     ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
                     [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                    $matches[5]
+                    $matches['fallback']
                 );
             }
 
