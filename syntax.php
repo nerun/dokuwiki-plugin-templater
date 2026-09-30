@@ -132,17 +132,29 @@ class syntax_plugin_templater extends SyntaxPlugin
         if ($mode == 'metadata') {
             if ($data !== false && !empty($data[0])) {
                 $renderer->meta['relation']['references'][$data[0]] = page_exists($data[0]);
+                if (in_array($data[0], self::$pagestack, true)) {
+                    return true;
+                }
 
-                $processed = $this->getProcessedInstructions($data);
-                if ($processed !== false) {
-                    list($instr, $error) = $processed;
-                    if (is_null($error)) {
-                        foreach ($instr as $instruction) {
-                            if ($instruction[0] === 'internallink') {
-                                $renderer->internalLink($instruction[1][0]);
+                // Use the same template context as XHTML: nested templates resolve
+                // relative to this template and preview must not process values twice.
+                self::$pagestack[] = $data[0];
+                try {
+                    $processed = $this->getProcessedInstructions($data);
+                    if ($processed !== false) {
+                        list($instr, $error) = $processed;
+                        if (is_null($error)) {
+                            foreach ($instr as $instruction) {
+                                if (in_array($instruction[0], ['internallink', 'internalmedia'], true)) {
+                                    call_user_func_array([$renderer, $instruction[0]], $instruction[1]);
+                                } elseif ($instruction[0] === 'plugin' && $instruction[1][0] === 'templater') {
+                                    call_user_func_array([$renderer, 'plugin'], $instruction[1]);
+                                }
                             }
                         }
                     }
+                } finally {
+                    array_pop(self::$pagestack);
                 }
             }
             return true;
@@ -290,9 +302,13 @@ class syntax_plugin_templater extends SyntaxPlugin
         }
 
         $rawFile = io_readfile($file);
-        // handle noinclude and includeonly tags (backported from yatp)
-        $rawFile = preg_replace('/<noinclude>.*?<\/noinclude>/is', '', $rawFile);
-        $rawFile = preg_replace('/<\/?includeonly>/is', '', $rawFile);
+        // Keep literal tag examples intact. Template variables retain their legacy
+        // replacement behavior inside these blocks, independently of direct preview.
+        $protected_tags = '<(?<tag>nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\k<tag>>|%%.*?%%'
+                        . '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
+        $skip_tags = '(?:' . $protected_tags . ')(*SKIP)(*FAIL)|';
+        $rawFile = preg_replace('/' . $skip_tags . '<noinclude>.*?<\/noinclude>/is', '', $rawFile);
+        $rawFile = preg_replace('/' . $skip_tags . '<\/?includeonly>/is', '', $rawFile);
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
@@ -308,12 +324,6 @@ class syntax_plugin_templater extends SyntaxPlugin
             . '(?![^@\s|\]\\\\]+@[\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||\]\]))'
             . str_replace('/', '\\/', $email_pattern)
             . '(?=\||\]\])(*SKIP)(*FAIL)|';
-
-        if (!$this->getConf('enable_direct_preview_protected')) {
-            $protected = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\1>|%%.*?%%' .
-                         '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
-            $skip_pattern .= '(?:' . $protected . ')(*SKIP)(*FAIL)|';
-        }
 
         // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
         if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
@@ -339,7 +349,7 @@ class syntax_plugin_templater extends SyntaxPlugin
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
                     . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
-                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/is';
+                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
 
                 /**
                  * We use preg_replace_callback instead of preg_replace to ensure the value is treated
@@ -361,7 +371,7 @@ class syntax_plugin_templater extends SyntaxPlugin
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '(?<var>[\w\-.]+)(?:\|(?<fallback>(?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
             . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
-            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/is';
+            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
 
         $rawFile = preg_replace_callback($pattern, function ($matches) use ($DEFAULT_STR, $has_replacements) {
             $fallback = isset($matches['fallback']) ? str_replace(

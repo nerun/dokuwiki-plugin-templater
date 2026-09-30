@@ -194,9 +194,11 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect_var|passed=Replaced}}'), $info);
         $rawText = html_entity_decode(strip_tags($xhtml));
         
-        // Variables should NOT be replaced, remaining literal
-        $this->assertStringContainsString('@var|Guest@', $rawText);
-        $this->assertStringContainsString('@passed@', $rawText);
+        // Included templates always replace variables, as before direct preview.
+        $this->assertStringContainsString('Guest', $rawText);
+        $this->assertStringContainsString('Replaced', $rawText);
+        $this->assertStringNotContainsString('@var|Guest@', $rawText);
+        $this->assertStringNotContainsString('@passed@', $rawText);
 
         // Test with enable_direct_preview_protected enabled
         $conf['plugin']['templater']['enable_direct_preview_protected'] = 1;

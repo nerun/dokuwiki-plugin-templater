@@ -1,6 +1,9 @@
 # CHANGELOG
 
 Unreleased
+* Index links, media, and nested template dependencies using the same processed content as rendering, with recursion protection.
+* Preserve case-sensitive parameters and legacy substitutions inside code and nowiki when including templates.
+* Keep literal `<noinclude>` and `<includeonly>` examples intact inside protected blocks.
 * Preserve literal DokuWiki email-link targets with or without `mailto:` during template substitution.
 * Keep fallbacks and explicit parameters working in prefixed email targets, including dotted keys.
 * Add rendered-link regression tests for email targets, labels, and internal-link placeholders.
