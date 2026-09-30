@@ -4,6 +4,7 @@
  * Action module for templater plugin: Adapts syntax when a page is moved using the move plugin
  */
 
+use dokuwiki\Extension\Event;
 use dokuwiki\Extension\ActionPlugin;
 use dokuwiki\Extension\EventHandler;
 
@@ -14,9 +15,9 @@ class action_plugin_templater_move extends ActionPlugin
         $controller->register_hook('PLUGIN_MOVE_HANDLERS_REGISTER', 'BEFORE', $this, 'handleMoveRegister');
     }
 
-    public function handleMoveRegister(Doku_Event $event, $params)
+    public function handleMoveRegister(Event $event, $params)
     {
-        $event->data['handlers']['templater'] = [$this, 'rewriteTemplater'];
+        $event->data['handlers']['templater'] = $this->rewriteTemplater(...);
     }
 
     /**
@@ -57,17 +58,16 @@ class action_plugin_templater_move extends ActionPlugin
 
         // If the link was resolved using the default namespace, and the new page is still in that namespace,
         // we can strip the namespace prefix to keep the syntax clean.
-        if (!empty($defaultNamespace) && strpos($newpage, $defaultNamespace . ':') === 0) {
+        if (!empty($defaultNamespace) && str_starts_with($newpage, $defaultNamespace . ':')) {
             $clean_newpage = substr($newpage, strlen($defaultNamespace) + 1);
-            if (strpos($clean_newpage, ':') === false) {
+            if (!str_contains($clean_newpage, ':')) {
                 $newpage = $clean_newpage;
             }
         }
 
         if ($newpage == $resolvedPage || $newpage == $page) {
             return $match;
-        } else {
-            return $prefix . $newpage . $suffix;
         }
+        return $prefix . $newpage . $suffix;
     }
 }
