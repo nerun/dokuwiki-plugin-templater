@@ -41,7 +41,8 @@ class action_plugin_templater_fallback extends ActionPlugin
 
         // Protect standard blocks if not explicitly enabled
         if (!$enableProtected) {
-            $protect1 = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\2>|%%.*?%%|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
+            $protect1 = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\2>|%%.*?%%' .
+                        '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
         } else {
             // Maintains the 2 capturing groups so index offsets stay consistent
             $protect1 = '(?!)()';
@@ -65,11 +66,15 @@ class action_plugin_templater_fallback extends ActionPlugin
 
                 // Protect emails and image names with @ to prevent cross-boundary matches
                 $hidden = [];
-                $inner = preg_replace_callback('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+(?=[|\]}?# ])/', function($m) use (&$hidden) {
-                    $token = "\x01" . count($hidden) . "\x01";
-                    $hidden[] = $m[0];
-                    return $token;
-                }, $inner);
+                $inner = preg_replace_callback(
+                    '/[^\s@|]+@[^\s@|]+(?=[|\]}?# ])/',
+                    function ($m) use (&$hidden) {
+                        $token = "\x01" . count($hidden) . "\x01";
+                        $hidden[] = $m[0];
+                        return $token;
+                    },
+                    $inner
+                );
 
                 $inner = preg_replace_callback($linkPattern, function ($m) {
                     if (isset($m[2])) {
@@ -82,7 +87,7 @@ class action_plugin_templater_fallback extends ActionPlugin
                     return $m[0];
                 }, $inner);
 
-                $inner = preg_replace_callback('/\x01(\d+)\x01/', function($m) use ($hidden) {
+                $inner = preg_replace_callback('/\x01(\d+)\x01/', function ($m) use ($hidden) {
                     return $hidden[$m[1]];
                 }, $inner);
 
