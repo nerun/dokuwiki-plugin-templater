@@ -117,7 +117,7 @@ class syntax_plugin_templater extends SyntaxPlugin
         return [$wikipage[0], $replacers, $section];
     }
 
-    private static $pagestack = []; // keep track of recursing template renderings
+    public static $pagestack = []; // keep track of recursing template renderings
 
     /**
      * Create output
