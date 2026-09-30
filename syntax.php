@@ -29,6 +29,7 @@
 use dokuwiki\Extension\SyntaxPlugin;
 use dokuwiki\Parsing\Handler;
 use dokuwiki\File\PageResolver;
+use dokuwiki\MailUtils;
 
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
@@ -92,7 +93,7 @@ class syntax_plugin_templater extends SyntaxPlugin
         $wikipage = preg_split('/\#/u', $wikipage, 2);                       // split hash from filename
         $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
-        $resolver = new PageResolver(getNS($parentpage));
+        $resolver = new PageResolver($parentpage);
         if (!isset($wikipage[0]) || trim($wikipage[0]) === '') {
             return false;
         }
@@ -124,8 +125,16 @@ class syntax_plugin_templater extends SyntaxPlugin
      */
     public function render($mode, Doku_Renderer $renderer, $data)
     {
-        if ($mode != 'xhtml' && $mode != 'odt')
+        if ($mode == 'metadata') {
+            if ($data !== false && !empty($data[0])) {
+                $renderer->meta['relation']['references'][$data[0]] = page_exists($data[0]);
+            }
+            return true;
+        }
+
+        if ($mode != 'xhtml' && $mode != 'odt') {
             return false;
+        }
 
         if ($data[0] === false) {
             // False means no permissions
@@ -182,6 +191,17 @@ class syntax_plugin_templater extends SyntaxPlugin
         $has_replacements = false;
         $default_str_set = false;
 
+        // Protect literal email targets, with or without mailto:, using DokuWiki's grammar.
+        // A complete fallback ending at a link separator or ]] takes precedence: the
+        // apparent domain may actually be a dotted key (team-@user.address|Guest@).
+        // Only the target is skipped, so placeholders in the label still work.
+        $email_pattern = class_exists(MailUtils::class)
+            ? MailUtils::PREG_PATTERN_VALID_EMAIL : PREG_PATTERN_VALID_EMAIL;
+        $email_link_pattern = '\[\[(?:mailto:)?'
+            . '(?![^@\s|\]\\\\]+@[\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||\]\]))'
+            . str_replace('/', '\\/', $email_pattern)
+            . '(?=\||\]\])(*SKIP)(*FAIL)|';
+
         // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
         if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
             $has_replacements = true;
@@ -199,8 +219,10 @@ class syntax_plugin_templater extends SyntaxPlugin
                  * Emulate str_replace but supporting fallbacks
                  * It replaces @key@ or @key|fallback@ with the passed value
                  * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                 * We skip literal email targets to prevent matches crossing into link labels.
                  */
-                $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+                $pattern = '/' . $email_link_pattern
+                    . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
                     . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
@@ -216,12 +238,13 @@ class syntax_plugin_templater extends SyntaxPlugin
 
         /**
          * Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
-         * We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails
-         * (e.g. alice@example.org and bob@example.org).
+         * We restrict this to strict identifiers ([\w\-.]+) but skip literal email targets
+         * to prevent matches crossing into link labels.
          * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
          * Literal '@' inside the fallback can be escaped with '\@'
          */
-        $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+        $pattern = '/' . $email_link_pattern
+            . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
             . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
