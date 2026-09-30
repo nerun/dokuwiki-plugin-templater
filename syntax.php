@@ -29,6 +29,7 @@
 use dokuwiki\Extension\SyntaxPlugin;
 use dokuwiki\Parsing\Handler;
 use dokuwiki\File\PageResolver;
+use dokuwiki\MailUtils;
 
 define('BEGIN_REPLACE_DELIMITER', '@');
 define('END_REPLACE_DELIMITER', '@');
@@ -96,7 +97,7 @@ class syntax_plugin_templater extends SyntaxPlugin
         }
         $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
-        $resolver = new PageResolver(getNS($parentpage));
+        $resolver = new PageResolver($parentpage);
         if (!isset($wikipage[0]) || trim($wikipage[0]) === '') {
             return false;
         }
@@ -120,7 +121,7 @@ class syntax_plugin_templater extends SyntaxPlugin
         return [$wikipage[0], $replacers, $section];
     }
 
-    private static $pagestack = []; // keep track of recursing template renderings
+    public static $pagestack = []; // keep track of recursing template renderings
 
     /**
      * Create output
@@ -129,17 +130,17 @@ class syntax_plugin_templater extends SyntaxPlugin
     public function render($mode, Doku_Renderer $renderer, $data)
     {
         if ($mode == 'metadata') {
-            // Register the included template itself as a reference
-            // Prefix with ':' so root-level templates are treated as absolute
-            $renderer->internalLink(':' . ltrim($data[0], ':'));
+            if ($data !== false && !empty($data[0])) {
+                $renderer->meta['relation']['references'][$data[0]] = page_exists($data[0]);
 
-            $processed = $this->getProcessedInstructions($data);
-            if ($processed !== false) {
-                list($instr, $error) = $processed;
-                if (is_null($error)) {
-                    foreach ($instr as $instruction) {
-                        if ($instruction[0] === 'internallink') {
-                            $renderer->internalLink($instruction[1][0]);
+                $processed = $this->getProcessedInstructions($data);
+                if ($processed !== false) {
+                    list($instr, $error) = $processed;
+                    if (is_null($error)) {
+                        foreach ($instr as $instruction) {
+                            if ($instruction[0] === 'internallink') {
+                                $renderer->internalLink($instruction[1][0]);
+                            }
                         }
                     }
                 }
@@ -147,8 +148,9 @@ class syntax_plugin_templater extends SyntaxPlugin
             return true;
         }
 
-        if ($mode != 'xhtml' && $mode != 'odt')
+        if ($mode != 'xhtml' && $mode != 'odt') {
             return false;
+        }
 
         if ($data[0] === false) {
             // False means no permissions
@@ -290,12 +292,28 @@ class syntax_plugin_templater extends SyntaxPlugin
         $rawFile = io_readfile($file);
         // handle noinclude and includeonly tags (backported from yatp)
         // Protect <noinclude> and <includeonly> when enclosed in literal blocks like <code> or <nowiki>
-        $protected = '<nowiki>.*?<\/nowiki>|%%.*?%%|<code\b[^>]*>.*?<\/code>|<file\b[^>]*>.*?<\/file>';
-        $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<noinclude>.*?<\/noinclude>/is", '', $rawFile);
-        $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<\/?includeonly>/i", '', $rawFile);
+        if (!$this->getConf('enable_direct_preview_protected')) {
+            $protected = '<nowiki>.*?<\/nowiki>|%%.*?%%|<code\b[^>]*>.*?<\/code>|<file\b[^>]*>.*?<\/file>';
+            $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<noinclude>.*?<\/noinclude>/is", '', $rawFile);
+            $rawFile = preg_replace("/(?:$protected)(*SKIP)(*FAIL)|<\/?includeonly>/i", '', $rawFile);
+        } else {
+            $rawFile = preg_replace("/<noinclude>.*?<\/noinclude>/is", '', $rawFile);
+            $rawFile = preg_replace("/<\/?includeonly>/i", '', $rawFile);
+        }
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
+
+        // Protect literal email targets, with or without mailto:, using DokuWiki's grammar.
+        // A complete fallback ending at a link separator or ]] takes precedence: the
+        // apparent domain may actually be a dotted key (team-@user.address|Guest@).
+        // Only the target is skipped, so placeholders in the label still work.
+        $email_pattern = class_exists(MailUtils::class)
+            ? MailUtils::PREG_PATTERN_VALID_EMAIL : PREG_PATTERN_VALID_EMAIL;
+        $email_link_pattern = '\[\[(?:mailto:)?'
+            . '(?![^@\s|\]\\\\]+@[\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||\]\]))'
+            . str_replace('/', '\\/', $email_pattern)
+            . '(?=\||\]\])(*SKIP)(*FAIL)|';
 
         // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
         if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
@@ -314,8 +332,10 @@ class syntax_plugin_templater extends SyntaxPlugin
                  * Emulate str_replace but supporting fallbacks
                  * It replaces @key@ or @key|fallback@ with the passed value
                  * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                 * We skip literal email targets to prevent matches crossing into link labels.
                  */
-                $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+                $pattern = '/' . $email_link_pattern
+                    . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
                     . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
                     . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
                     . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
@@ -331,12 +351,13 @@ class syntax_plugin_templater extends SyntaxPlugin
 
         /**
          * Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
-         * We restrict this to strict identifiers ([\w\-.]+) to prevent destroying emails
-         * (e.g. alice@example.org and bob@example.org).
+         * We restrict this to strict identifiers ([\w\-.]+) but skip literal email targets
+         * to prevent matches crossing into link labels.
          * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
          * Literal '@' inside the fallback can be escaped with '\@'
          */
-        $pattern = '/(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+        $pattern = '/' . $email_link_pattern
+            . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
             . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
             . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
