@@ -150,6 +150,13 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         $this->assertStringNotContainsString('@label', $xhtml);
         $this->assertStringNotContainsString('@page', $xhtml);
         $this->assertStringNotContainsString('@caption', $xhtml);
+
+        $document = new \DOMDocument();
+        $document->loadHTML('<?xml encoding="UTF-8">' . $xhtml);
+        $links = $document->getElementsByTagName('a');
+        $this->assertSame(3, $links->length, $xhtml);
+        $this->assertSame('start', $links->item(1)->getAttribute('data-wiki-id'), $xhtml);
+        $this->assertSame('start', $links->item(1)->textContent, $xhtml);
     }
 
     public function test_fallback_regression_lists() {
@@ -168,5 +175,45 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         
         // Should parse as protected code with fallback intact
         $this->assertStringContainsString('<pre class="code">@name|Guest@</pre>', $xhtml);
+    }
+
+    public static function fallback_link_provider() {
+        return [
+            'root target' => ['[[:@page|start@]]', '[[:start]]'],
+            'namespace target' => ['[[docs:@page|start@|Label]]', '[[docs:start|Label]]'],
+            'prefixed mailto' => ['[[mailto:team-@address|support\\@example.com@|Contact]]', '[[mailto:team-support@example.com|Contact]]'],
+            'prefixed bare email' => ['[[team-@address|support\\@example.com@|Contact]]', '[[team-support@example.com|Contact]]'],
+            'dotted key' => ['[[mailto:team-@user.address|support\\@example.com@|Contact]]', '[[mailto:team-support@example.com|Contact]]'],
+            'bare email' => ['[[alice@example.com|alice@example.com]]', '[[alice@example.com|alice@example.com]]'],
+            'mailto with punctuation' => ['[[mailto:sales!+tag@example.com|sales!+tag@example.com]]', '[[mailto:sales!+tag@example.com|sales!+tag@example.com]]'],
+            'email with fallback label' => ['[[alice@example.com|@label|Alice@]]', '[[alice@example.com|Alice]]'],
+            'link label' => ['[[start|@label|Home@]]', '[[start|Home]]'],
+            'escaped pipe in label' => ['[[start|@label|A\\|B@]]', '[[start|A|B]]'],
+            'empty fallback' => ['[[start|@label|@]]', '[[start|]]'],
+            'media caption' => ['{{:picture.png|@caption|Photo@}}', '{{:picture.png|Photo}}'],
+            'literal media filename' => ['{{:photo@2x.jpg|photo@2x.jpg}}', '{{:photo@2x.jpg|photo@2x.jpg}}'],
+            'media filename with fallback caption' => ['{{https://example.org/photo@2x.jpg|@caption|Photo@}}', '{{https://example.org/photo@2x.jpg|Photo}}'],
+            'literal former token' => ["[[start|\x010\x01 @label|Home@]]", "[[start|\x010\x01 Home]]"],
+        ];
+    }
+
+    /** @dataProvider fallback_link_provider */
+    public function test_fallback_link_rendering($source, $expected) {
+        global $conf, $ID;
+        $ID = 'caller';
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+
+        $event = new \Doku_Event('PARSER_WIKITEXT_PREPROCESS', $source);
+        plugin_load('action', 'templater_fallback')->applyFallbacks($event, []);
+        $this->assertSame($expected, $event->data);
+
+        // Compare the actual XHTML with DokuWiki rendering the resolved markup.
+        // This checks destinations and captions, rather than words occurring anywhere.
+        $info = [];
+        $actual = p_render('xhtml', p_get_instructions($source), $info);
+        $conf['plugin']['templater']['enable_direct_preview'] = 0;
+        $expectedXhtml = p_render('xhtml', p_get_instructions($expected), $info);
+        $this->assertSame($expectedXhtml, $actual);
     }
 }

@@ -62,19 +62,12 @@ class action_plugin_templater_fallback extends ActionPlugin
             if (!empty($matches[3])) {
                 // It's a DokuWiki link or media syntax
                 $inner = substr($matches[3], 2, -2);
-                $linkPattern = '/' . $p1 . $p2 . '/is';
-
-                // Protect emails and image names with @ to prevent cross-boundary matches
-                $hidden = [];
-                $inner = preg_replace_callback(
-                    '/[^\s@|]+@[^\s@|]+(?=[|\]}?# ])/',
-                    function ($m) use (&$hidden) {
-                        $token = "\x01" . count($hidden) . "\x01";
-                        $hidden[] = $m[0];
-                        return $token;
-                    },
-                    $inner
-                );
+                // Skip literal emails and filenames without hiding complete fallbacks.
+                // In docs:@page|start@ and team-@address|support\@example.com@,
+                // the text following @ is a placeholder, not a literal address.
+                $literalPattern = '[^\s@|]+@(?![\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||$))'
+                    . '[^\s@|]+(?=[|\]}?# ]|$)(*SKIP)(*FAIL)|';
+                $linkPattern = '/' . $literalPattern . $p1 . $p2 . '/is';
 
                 $inner = preg_replace_callback($linkPattern, function ($m) {
                     if (isset($m[2])) {
@@ -85,10 +78,6 @@ class action_plugin_templater_fallback extends ActionPlugin
                         );
                     }
                     return $m[0];
-                }, $inner);
-
-                $inner = preg_replace_callback('/\x01(\d+)\x01/', function ($m) use ($hidden) {
-                    return $hidden[$m[1]];
                 }, $inner);
 
                 $prefix = substr($matches[3], 0, 2);
