@@ -47,7 +47,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
     public function test_email_link_corruption() {
         // Prevent email addresses with domains inside links from matching the variable fallback regex
         // (Because if variable names allowed dots, @example.com|atendimento@ would match the fallback syntax)
-        saveWikiText('test_email_link', 'Link: [[mailto:atendimento@example.com|atendimento@example.com]] and [[mailto:sales!@example.com|sales!@example.com]]', 'Test setup');
+        saveWikiText('test:test_email_link', 'Link: [[mailto:atendimento@example.com|atendimento@example.com]] and [[mailto:sales!@example.com|sales!@example.com]]', 'Test setup');
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_email_link|name=Bob}}'), $info);
         
         $this->assertStringContainsString('atendimento@example.com', $xhtml);
@@ -58,7 +58,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
     }
 
     public function test_dots_in_variable_name() {
-        saveWikiText('test_dots', 'A: report-@user.name|Guest@, B: report-@user.name@', 'Test setup');
+        saveWikiText('test:test_dots', 'A: report-@user.name|Guest@, B: report-@user.name@', 'Test setup');
         
         // Without parameter, A falls back to Guest, B remains unchanged or becomes empty depending on logic.
         $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots}}'), $info);
@@ -76,7 +76,7 @@ class syntax_plugin_templater_test extends DokuWikiTest {
 
     public function test_placeholders_in_link_targets() {
         // Placeholders should be fully evaluated when present in link targets
-        saveWikiText('test_link_targets', 'X: [[:@page|start@]], Y: [[docs:@page|start@|Label]]', 'Test setup');
+        saveWikiText('test:test_link_targets', 'X: [[:@page|start@]], Y: [[docs:@page|start@|Label]]', 'Test setup');
 
         // Without parameter, fallback (start) is used
         // Since there is no explicit label, X uses 'start' as target and 'start' as label depending on Dokuwiki
