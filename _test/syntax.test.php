@@ -44,6 +44,55 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringContainsString('Owner: Bob', $xhtml);
     }
 
+    public function test_email_link_corruption() {
+        // Prevent email addresses with domains inside links from matching the variable fallback regex
+        // (Because if variable names allowed dots, @example.com|atendimento@ would match the fallback syntax)
+        saveWikiText('test_email_link', 'Link: [[mailto:atendimento@example.com|atendimento@example.com]] and [[mailto:sales!@example.com|sales!@example.com]]', 'Test setup');
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_email_link|name=Bob}}'), $info);
+        
+        $this->assertStringContainsString('atendimento@example.com', $xhtml);
+        $this->assertStringContainsString('sales!@example.com', $xhtml);
+        // It should NOT output atendimentoatendimentoexample.com or sales!sales!example.com
+        $this->assertStringNotContainsString('atendimentoatendimentoexample.com', $xhtml);
+        $this->assertStringNotContainsString('sales!sales!example.com', $xhtml);
+    }
+
+    public function test_dots_in_variable_name() {
+        saveWikiText('test_dots', 'A: report-@user.name|Guest@, B: report-@user.name@', 'Test setup');
+        
+        // Without parameter, A falls back to Guest, B remains unchanged or becomes empty depending on logic.
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots}}'), $info);
+        $this->assertStringContainsString('A: report-Guest', $xhtml);
+        
+        // Without parameter, with DEFAULT_STR, B falls back to DEFAULT_STR
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots|DEFAULT_STR=Missing}}'), $info);
+        $this->assertStringContainsString('B: report-Missing', $xhtml);
+
+        // With parameter explicitly passed
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_dots|user.name=Bob|DEFAULT_STR=Missing}}'), $info);
+        $this->assertStringContainsString('A: report-Bob', $xhtml);
+        $this->assertStringContainsString('B: report-Bob', $xhtml);
+    }
+
+    public function test_placeholders_in_link_targets() {
+        // Placeholders should be fully evaluated when present in link targets
+        saveWikiText('test_link_targets', 'X: [[:@page|start@]], Y: [[docs:@page|start@|Label]]', 'Test setup');
+
+        // Without parameter, fallback (start) is used
+        // Since there is no explicit label, X uses 'start' as target and 'start' as label depending on Dokuwiki
+        // Actually, since [[:start]] has no label, it links to start
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_link_targets}}'), $info);
+        $this->assertStringContainsString('href="/doku.php?id=start"', $xhtml);
+        $this->assertStringContainsString('href="/doku.php?id=docs:start"', $xhtml);
+        $this->assertStringNotContainsString('@page|start@', $xhtml);
+
+        // With parameter passed, it should use the parameter
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test_link_targets|page=custom}}'), $info);
+        $this->assertStringContainsString('href="/doku.php?id=custom"', $xhtml);
+        $this->assertStringContainsString('href="/doku.php?id=docs:custom"', $xhtml);
+        $this->assertStringNotContainsString('start', $xhtml);
+    }
+
     public function test_literal_at_in_fallback() {
         // Escaped @ characters should become literal and NOT become active on subsequent passes
         saveWikiText('test:test_at', 'Email: @x|\@name\@@', 'Test setup');

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+Unreleased
+* Preserve literal DokuWiki email-link targets with or without `mailto:` during template substitution.
+* Keep fallbacks and explicit parameters working in prefixed email targets, including dotted keys.
+* Add rendered-link regression tests for email targets, labels, and internal-link placeholders.
+
 2026-06-13
 * Included Slovak translation. (by Wizzard \<wizzardsk@gmail.com>).
 
