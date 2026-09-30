@@ -1,10 +1,12 @@
 <?php
 
+use dokuwiki\Extension\SyntaxPlugin;
+use dokuwiki\Parsing\Handler;
+
 /**
  * Templater Plugin: Hides literal <noinclude> tags when viewing the template directly
  */
-
-class syntax_plugin_templater_noinclude extends DokuWiki_Syntax_Plugin
+class syntax_plugin_templater_noinclude extends SyntaxPlugin
 {
     public function getType()
     {
@@ -26,7 +28,7 @@ class syntax_plugin_templater_noinclude extends DokuWiki_Syntax_Plugin
         $this->Lexer->addSpecialPattern('<noinclude>|</noinclude>', $mode, 'plugin_templater_noinclude');
     }
 
-    public function handle($match, $state, $pos, Doku_Handler $handler)
+    public function handle($match, $state, $pos, Handler $handler)
     {
         // Return empty string to delete the literal tags themselves
         return '';

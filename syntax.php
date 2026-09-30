@@ -142,13 +142,13 @@ class syntax_plugin_templater extends SyntaxPlugin
                 try {
                     $processed = $this->getProcessedInstructions($data);
                     if ($processed !== false) {
-                        list($instr, $error) = $processed;
+                        [$instr, $error] = $processed;
                         if (is_null($error)) {
                             foreach ($instr as $instruction) {
                                 if (in_array($instruction[0], ['internallink', 'internalmedia'], true)) {
                                     call_user_func_array([$renderer, $instruction[0]], $instruction[1]);
                                 } elseif ($instruction[0] === 'plugin' && $instruction[1][0] === 'templater') {
-                                    call_user_func_array([$renderer, 'plugin'], $instruction[1]);
+                                    $renderer->plugin(...$instruction[1]);
                                 }
                             }
                         }
@@ -219,7 +219,7 @@ class syntax_plugin_templater extends SyntaxPlugin
             return true;
         }
 
-        list($instr, $getSection1) = $processed;
+        [$instr, $getSection1] = $processed;
 
         if ($data[2] && !is_null($getSection1)) {
             if ($mode == 'xhtml') {
@@ -309,6 +309,7 @@ class syntax_plugin_templater extends SyntaxPlugin
         $skip_tags = '(?:' . $protected_tags . ')(*SKIP)(*FAIL)|';
         $rawFile = preg_replace('/' . $skip_tags . '<noinclude>.*?<\/noinclude>/is', '', $rawFile);
         $rawFile = preg_replace('/' . $skip_tags . '<\/?includeonly>/is', '', $rawFile);
+
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
