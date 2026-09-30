@@ -184,20 +184,6 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringContainsString('B: @@foo|bar@@', $xhtml);
     }
 
-    public function test_protected_literal_contexts() {
-        saveWikiText('test:test_protect', "<code>\n<noinclude>Example</noinclude>\n</code> and <nowiki><includeonly>Tag</includeonly></nowiki> and <file php><noinclude>Code here</noinclude></file>", 'Test setup');
-        
-        $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect}}'), $info);
-        
-        // Convert entities and strip HTML tags (like Geshi syntax highlighter spans) to assert raw text
-        $rawText = html_entity_decode(strip_tags($xhtml));
-
-        // These blocks should completely retain their literal text including the tags
-        $this->assertStringContainsString('<noinclude>Example</noinclude>', $rawText);
-        $this->assertStringContainsString('<includeonly>Tag</includeonly>', $rawText);
-        $this->assertStringContainsString('<noinclude>Code here</noinclude>', $rawText);
-    }
-
     public function test_protected_literal_contexts_variables() {
         global $conf;
 

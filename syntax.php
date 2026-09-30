@@ -290,16 +290,9 @@ class syntax_plugin_templater extends SyntaxPlugin
         }
 
         $rawFile = io_readfile($file);
-        // Protect <noinclude> and <includeonly> when enclosed in literal blocks like <code> or <nowiki>
-        $skip_tags = '';
-        if (!$this->getConf('enable_direct_preview_protected')) {
-            $protected_tags = '<(?<tag>nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\k<tag>>|%%.*?%%'
-                            . '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
-            $skip_tags = '(?:' . $protected_tags . ')(*SKIP)(*FAIL)|';
-        }
-
-        $rawFile = preg_replace("/" . $skip_tags . "<noinclude>.*?<\/noinclude>/is", '', $rawFile);
-        $rawFile = preg_replace("/" . $skip_tags . "<\/?includeonly>/is", '', $rawFile);
+        // handle noinclude and includeonly tags (backported from yatp)
+        $rawFile = preg_replace('/<noinclude>.*?<\/noinclude>/is', '', $rawFile);
+        $rawFile = preg_replace('/<\/?includeonly>/is', '', $rawFile);
         $DEFAULT_STR = "";
         $has_replacements = false;
         $default_str_set = false;
