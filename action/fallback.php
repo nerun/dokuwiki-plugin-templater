@@ -5,6 +5,7 @@
  * globally before the wiki parses it, so it works inside <WRAP> tags when viewing the page directly.
  */
 
+use dokuwiki\Extension\Event;
 use dokuwiki\Extension\ActionPlugin;
 use dokuwiki\Extension\EventHandler;
 
@@ -15,7 +16,7 @@ class action_plugin_templater_fallback extends ActionPlugin
         $controller->register_hook('PARSER_WIKITEXT_PREPROCESS', 'BEFORE', $this, 'applyFallbacks');
     }
 
-    public function applyFallbacks(Doku_Event $event, $params)
+    public function applyFallbacks(Event $event, $params)
     {
         if (!$this->getConf('enable_direct_preview')) {
             return;
