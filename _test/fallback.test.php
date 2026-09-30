@@ -132,8 +132,6 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         $this->assertEquals("  @name|Guest@\nnormal Guest", $event->data);
     }
 
-    
-    
     public function test_fallback_regression_link_pipes() {
         global $conf;
         $conf['plugin']['templater']['enable_direct_preview'] = 1;
@@ -153,6 +151,7 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         $this->assertStringNotContainsString('@page', $xhtml);
         $this->assertStringNotContainsString('@caption', $xhtml);
     }
+
     public function test_fallback_regression_lists() {
         global $conf;
         $conf['plugin']['templater']['enable_direct_preview'] = 1;
