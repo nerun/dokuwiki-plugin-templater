@@ -91,6 +91,10 @@ class syntax_plugin_templater extends SyntaxPlugin
         $replacers = $this->massageReplacers($replacers);
 
         $wikipage = preg_split('/\#/u', $wikipage, 2);                       // split hash from filename
+        $defaultNamespace = $this->getConf('namespace');
+        if (!empty($defaultNamespace) && !preg_match('/^[:.]/', $wikipage[0])) {
+            $wikipage[0] = $defaultNamespace . ':' . $wikipage[0];
+        }
         $parentpage = empty(self::$pagestack) ? $ID : end(self::$pagestack); // get correct namespace
         // resolve shortcuts:
         $resolver = new PageResolver($parentpage);
@@ -128,6 +132,30 @@ class syntax_plugin_templater extends SyntaxPlugin
         if ($mode == 'metadata') {
             if ($data !== false && !empty($data[0])) {
                 $renderer->meta['relation']['references'][$data[0]] = page_exists($data[0]);
+                if (in_array($data[0], self::$pagestack, true)) {
+                    return true;
+                }
+
+                // Use the same template context as XHTML: nested templates resolve
+                // relative to this template and preview must not process values twice.
+                self::$pagestack[] = $data[0];
+                try {
+                    $processed = $this->getProcessedInstructions($data);
+                    if ($processed !== false) {
+                        list($instr, $error) = $processed;
+                        if (is_null($error)) {
+                            foreach ($instr as $instruction) {
+                                if (in_array($instruction[0], ['internallink', 'internalmedia'], true)) {
+                                    call_user_func_array([$renderer, $instruction[0]], $instruction[1]);
+                                } elseif ($instruction[0] === 'plugin' && $instruction[1][0] === 'templater') {
+                                    call_user_func_array([$renderer, 'plugin'], $instruction[1]);
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    array_pop(self::$pagestack);
+                }
             }
             return true;
         }
@@ -185,114 +213,24 @@ class syntax_plugin_templater extends SyntaxPlugin
         }
         self::$pagestack[] = $data[0]; // push this onto the stack
 
-        // Get the raw file, and parse it into its instructions. This could be cached... maybe.
-        $rawFile = io_readfile($file);
-        $DEFAULT_STR = "";
-        $has_replacements = false;
-        $default_str_set = false;
-
-        // Protect literal email targets, with or without mailto:, using DokuWiki's grammar.
-        // A complete fallback ending at a link separator or ]] takes precedence: the
-        // apparent domain may actually be a dotted key (team-@user.address|Guest@).
-        // Only the target is skipped, so placeholders in the label still work.
-        $email_pattern = class_exists(MailUtils::class)
-            ? MailUtils::PREG_PATTERN_VALID_EMAIL : PREG_PATTERN_VALID_EMAIL;
-        $email_link_pattern = '\[\[(?:mailto:)?'
-            . '(?![^@\s|\]\\\\]+@[\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||\]\]))'
-            . str_replace('/', '\\/', $email_pattern)
-            . '(?=\||\]\])(*SKIP)(*FAIL)|';
-
-        // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
-        if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
-            $has_replacements = true;
-
-            foreach ($data[1]['keys'] as $i => $k) {
-                $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
-                $val = $data[1]['vals'][$i];
-
-                if ($inner_key === 'DEFAULT_STR' && !$default_str_set) {
-                    $DEFAULT_STR = $val;
-                    $default_str_set = true;
-                }
-
-                /**
-                 * Emulate str_replace but supporting fallbacks
-                 * It replaces @key@ or @key|fallback@ with the passed value
-                 * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
-                 * We skip literal email targets to prevent matches crossing into link labels.
-                 */
-                $pattern = '/' . $email_link_pattern
-                    . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
-                    . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
-                    . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
-                    . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
-                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
-
-                /**
-                 * We use preg_replace_callback instead of preg_replace to ensure the value is treated
-                 * as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
-                 */
-                $rawFile = preg_replace_callback($pattern, fn($matches) => $val, $rawFile);
-            }
+        $processed = $this->getProcessedInstructions($data);
+        if ($processed === false) {
+            array_pop(self::$pagestack);
+            return true;
         }
 
-        /**
-         * Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
-         * We restrict this to strict identifiers ([\w\-.]+) but skip literal email targets
-         * to prevent matches crossing into link labels.
-         * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
-         * Literal '@' inside the fallback can be escaped with '\@'
-         */
-        $pattern = '/' . $email_link_pattern
-            . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
-            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '([\w\-.]+)(?:\|((?:[^'
-            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
-            . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
-            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
+        list($instr, $getSection1) = $processed;
 
-        $rawFile = preg_replace_callback($pattern, function ($matches) use ($DEFAULT_STR, $has_replacements) {
-            $fallback = isset($matches[2]) ? str_replace(
-                ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
-                [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                $matches[2]
-            ) : null;
-
-            // If a fallback is provided, use it
-            if ($fallback !== null) {
-                return $fallback;
-            }
-
-            // Otherwise, use DEFAULT_STR if parameters were passed (legacy behavior)
-            if ($has_replacements) {
-                return $DEFAULT_STR;
-            }
-
-            // Leave intact
-            return $matches[0];
-        }, $rawFile);
-
-        $instr = p_get_instructions($rawFile);
-
-        // filter section if given
-        if ($data[2]) {
-            $getSection = $this->getSection($data[2], $instr);
-
-            $instr = $getSection[0];
-
-            if (!is_null($getSection[1])) {
-                if ($mode == 'xhtml') {
-                    $renderer->doc .= sprintf($getSection[1], $data[2]);
-                    $renderer->internalLink($data[0]);
-                    $renderer->doc .= '.<br/><br/></div>';
-                } else {
-                    $renderer->cdata(strip_tags(sprintf($getSection[1], $data[2])) . '. ');
-                    $renderer->internalLink($data[0]);
-                }
+        if ($data[2] && !is_null($getSection1)) {
+            if ($mode == 'xhtml') {
+                $renderer->doc .= sprintf($getSection1, $data[2]);
+                $renderer->internalLink($data[0]);
+                $renderer->doc .= '.<br/><br/></div>';
+            } else {
+                $renderer->cdata(strip_tags(sprintf($getSection1, $data[2])) . '. ');
+                $renderer->internalLink($data[0]);
             }
         }
-
-        // correct relative internal links and media
-        $instr = $this->correctRelNS($instr, $data[0]);
 
         // doesn't show the heading for each template if {{template>page#section}}
         if ($data[2] && count($instr) > 0 && !isset($getSection[1])) {
@@ -347,6 +285,129 @@ class syntax_plugin_templater extends SyntaxPlugin
 
         array_pop(self::$pagestack); // pop off the stack when done
         return true;
+    }
+
+    /**
+     * Get processed instructions for the given template data
+     * Parses the template file, applies placeholder replacements, and extracts sections
+     *
+     * @param array $data The parsed template data from handle()
+     * @return array|false An array containing [$instructions, $sectionError] or false if file not found
+     */
+    public function getProcessedInstructions($data)
+    {
+        $file = wikiFN($data[0]);
+        if (!@file_exists($file)) {
+            return false;
+        }
+
+        $rawFile = io_readfile($file);
+        // Keep literal tag examples intact. Template variables retain their legacy
+        // replacement behavior inside these blocks, independently of direct preview.
+        $protected_tags = '<(?<tag>nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\k<tag>>|%%.*?%%'
+                        . '|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
+        $skip_tags = '(?:' . $protected_tags . ')(*SKIP)(*FAIL)|';
+        $rawFile = preg_replace('/' . $skip_tags . '<noinclude>.*?<\/noinclude>/is', '', $rawFile);
+        $rawFile = preg_replace('/' . $skip_tags . '<\/?includeonly>/is', '', $rawFile);
+        $DEFAULT_STR = "";
+        $has_replacements = false;
+        $default_str_set = false;
+
+        // Protect literal email targets, with or without mailto:, using DokuWiki's grammar.
+        // A complete fallback ending at a link separator or ]] takes precedence: the
+        // apparent domain may actually be a dotted key (team-@user.address|Guest@).
+        // Only the target is skipped, so placeholders in the label still work.
+        $email_pattern = class_exists(MailUtils::class)
+            ? MailUtils::PREG_PATTERN_VALID_EMAIL : PREG_PATTERN_VALID_EMAIL;
+
+        $skip_pattern = '\[\[(?:mailto:)?'
+            . '(?![^@\s|\]\\\\]+@[\w\-.]+\|(?:[^@\r\n\\\\]|\\\\.)*@(?!@)(?=\||\]\]))'
+            . str_replace('/', '\\/', $email_pattern)
+            . '(?=\||\]\])(*SKIP)(*FAIL)|';
+
+        // Process explicitly passed parameters in order (preserves legacy multi-pass and duplicate precedence)
+        if (!empty($data[1]['keys']) && !empty($data[1]['vals'])) {
+            $has_replacements = true;
+
+            foreach ($data[1]['keys'] as $i => $k) {
+                $inner_key = substr($k, strlen(BEGIN_REPLACE_DELIMITER), -strlen(END_REPLACE_DELIMITER));
+                $val = $data[1]['vals'][$i];
+
+                if ($inner_key === 'DEFAULT_STR' && !$default_str_set) {
+                    $DEFAULT_STR = $val;
+                    $default_str_set = true;
+                }
+
+                /**
+                 * Emulate str_replace but supporting fallbacks
+                 * It replaces @key@ or @key|fallback@ with the passed value
+                 * We use negative lookarounds to prevent matching @@key@@ (used by bureaucracy plugin)
+                 * We skip literal email targets to prevent matches crossing into link labels.
+                 */
+                $pattern = '/' . $skip_pattern
+                    . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+                    . preg_quote(BEGIN_REPLACE_DELIMITER . $inner_key, '/')
+                    . '(?:\|(?:[^' . preg_quote(BEGIN_REPLACE_DELIMITER, '/')
+                    . '\r\n\\\\]|\\\\.)*)?' . preg_quote(END_REPLACE_DELIMITER, '/')
+                    . '(?!' . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
+
+                /**
+                 * We use preg_replace_callback instead of preg_replace to ensure the value is treated
+                 * as a literal string. preg_replace would evaluate $1 or \1 as backreferences.
+                 */
+                $rawFile = preg_replace_callback($pattern, fn($matches) => $val, $rawFile);
+            }
+        }
+
+        /**
+         * Final pass for remaining unmatched placeholders to apply fallbacks or DEFAULT_STR.
+         * We restrict this to strict identifiers ([\w\-.]+) but skip literal email targets
+         * to prevent matches crossing into link labels.
+         * Placeholders with spaces (e.g. @full name@) must be explicitly passed to be replaced.
+         * Literal '@' inside the fallback can be escaped with '\@'
+         */
+        $pattern = '/' . $skip_pattern
+            . '(?<!' . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . ')'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '(?<var>[\w\-.]+)(?:\|(?<fallback>(?:[^'
+            . preg_quote(BEGIN_REPLACE_DELIMITER, '/') . '\r\n\\\\]|\\\\.)*))?'
+            . preg_quote(END_REPLACE_DELIMITER, '/') . '(?!'
+            . preg_quote(END_REPLACE_DELIMITER, '/') . ')/';
+
+        $rawFile = preg_replace_callback($pattern, function ($matches) use ($DEFAULT_STR, $has_replacements) {
+            $fallback = isset($matches['fallback']) ? str_replace(
+                ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
+                [BEGIN_REPLACE_DELIMITER, '|', '\\'],
+                $matches['fallback']
+            ) : null;
+
+            // If a fallback is provided, use it
+            if ($fallback !== null) {
+                return $fallback;
+            }
+
+            // Otherwise, use DEFAULT_STR if parameters were passed (legacy behavior)
+            if ($has_replacements) {
+                return $DEFAULT_STR;
+            }
+
+            // Leave intact
+            return $matches[0];
+        }, $rawFile);
+
+        $instr = p_get_instructions($rawFile);
+        $sectionError = null;
+
+        // filter section if given
+        if ($data[2]) {
+            $getSection = $this->getSection($data[2], $instr);
+            $instr = $getSection[0];
+            $sectionError = $getSection[1];
+        }
+
+        // correct relative internal links and media
+        $instr = $this->correctRelNS($instr, $data[0]);
+
+        return [$instr, $sectionError];
     }
 
     /**

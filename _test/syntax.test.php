@@ -183,4 +183,35 @@ class syntax_plugin_templater_test extends DokuWikiTest {
         $this->assertStringContainsString('A: @@foo@@', $xhtml);
         $this->assertStringContainsString('B: @@foo|bar@@', $xhtml);
     }
+
+    public function test_protected_literal_contexts_variables() {
+        global $conf;
+
+        saveWikiText('test:test_protect_var', '<code>@var|Guest@</code> and <code>@passed@</code>', 'Test setup');
+
+        // Test with enable_direct_preview_protected disabled (default)
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect_var|passed=Replaced}}'), $info);
+        $rawText = html_entity_decode(strip_tags($xhtml));
+        
+        // Included templates always replace variables, as before direct preview.
+        $this->assertStringContainsString('Guest', $rawText);
+        $this->assertStringContainsString('Replaced', $rawText);
+        $this->assertStringNotContainsString('@var|Guest@', $rawText);
+        $this->assertStringNotContainsString('@passed@', $rawText);
+
+        // Test with enable_direct_preview_protected enabled
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 1;
+        $xhtml = p_render('xhtml', p_get_instructions('{{template>test:test_protect_var|passed=Replaced}}'), $info);
+        $rawText = html_entity_decode(strip_tags($xhtml));
+        
+        // Variables should be replaced by fallback/passed value
+        $this->assertStringContainsString('Guest', $rawText);
+        $this->assertStringContainsString('Replaced', $rawText);
+        $this->assertStringNotContainsString('@var|Guest@', $rawText);
+        $this->assertStringNotContainsString('@passed@', $rawText);
+        
+        // Restore default for other tests
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+    }
 }
