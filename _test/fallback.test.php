@@ -131,4 +131,43 @@ class fallback_plugin_templater_test extends DokuWikiTest {
         
         $this->assertEquals("  @name|Guest@\nnormal Guest", $event->data);
     }
+
+    
+    
+    public function test_fallback_regression_link_pipes() {
+        global $conf;
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+
+        $text = "[[start|@label|Home@]]\n[[:@page|start@]]\n{{:picture.png|@caption|Photo@}}";
+        
+        $info = [];
+        $xhtml = p_render('xhtml', p_get_instructions($text), $info);
+        
+        $this->assertStringContainsString('Home', $xhtml);
+        $this->assertStringContainsString('start', $xhtml);
+        $this->assertStringContainsString('picture.png', $xhtml);
+        $this->assertStringContainsString('Photo', $xhtml);
+        
+        // Ensure placeholders are gone
+        $this->assertStringNotContainsString('@label', $xhtml);
+        $this->assertStringNotContainsString('@page', $xhtml);
+        $this->assertStringNotContainsString('@caption', $xhtml);
+    }
+    public function test_fallback_regression_lists() {
+        global $conf;
+        $conf['plugin']['templater']['enable_direct_preview'] = 1;
+        $conf['plugin']['templater']['enable_direct_preview_protected'] = 0;
+
+        $text = "  * @name|Guest@\n  - @name|Guest@\n\n  @name|Guest@";
+        
+        $info = [];
+        $xhtml = p_render('xhtml', p_get_instructions($text), $info);
+        
+        // Should parse as lists with fallback resolved
+        $this->assertStringContainsString('<ul>', $xhtml);
+        $this->assertStringContainsString('<li class="level1"><div class="li"> Guest</div>', $xhtml);
+        
+        // Should parse as protected code with fallback intact
+        $this->assertStringContainsString('<pre class="code">@name|Guest@</pre>', $xhtml);
+    }
 }

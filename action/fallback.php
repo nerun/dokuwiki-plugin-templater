@@ -41,7 +41,7 @@ class action_plugin_templater_fallback extends ActionPlugin
 
         // Protect standard blocks if not explicitly enabled
         if (!$enableProtected) {
-            $protect1 = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\2>|%%.*?%%|(?:^|\n)  .*?(?=\n|$)';
+            $protect1 = '<(nowiki|code|file|php|html)(?: [^>]*)?>.*?<\/\2>|%%.*?%%|(?:^|\n)[ \t]{2,}+(?![*\-][ \t]).*?(?=\n|$)';
         } else {
             // Maintains the 2 capturing groups so index offsets stay consistent
             $protect1 = '(?!)()';
@@ -61,25 +61,34 @@ class action_plugin_templater_fallback extends ActionPlugin
             if (!empty($matches[3])) {
                 // It's a DokuWiki link or media syntax
                 $inner = substr($matches[3], 2, -2);
-                $parts = preg_split('/(?<!\\\\)\|/', $inner);
                 $linkPattern = '/' . $p1 . $p2 . '/is';
 
-                foreach ($parts as &$part) {
-                    $part = preg_replace_callback($linkPattern, function ($m) {
-                        if (isset($m[2])) {
-                            return str_replace(
-                                ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
-                                [BEGIN_REPLACE_DELIMITER, '|', '\\'],
-                                $m[2]
-                            );
-                        }
-                        return $m[0];
-                    }, $part);
-                }
+                // Protect emails and image names with @ to prevent cross-boundary matches
+                $hidden = [];
+                $inner = preg_replace_callback('/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+(?=[|\]}?# ])/', function($m) use (&$hidden) {
+                    $token = "\x01" . count($hidden) . "\x01";
+                    $hidden[] = $m[0];
+                    return $token;
+                }, $inner);
+
+                $inner = preg_replace_callback($linkPattern, function ($m) {
+                    if (isset($m[2])) {
+                        return str_replace(
+                            ['\\' . BEGIN_REPLACE_DELIMITER, '\\|', '\\\\'],
+                            [BEGIN_REPLACE_DELIMITER, '|', '\\'],
+                            $m[2]
+                        );
+                    }
+                    return $m[0];
+                }, $inner);
+
+                $inner = preg_replace_callback('/\x01(\d+)\x01/', function($m) use ($hidden) {
+                    return $hidden[$m[1]];
+                }, $inner);
 
                 $prefix = substr($matches[3], 0, 2);
                 $suffix = substr($matches[3], -2);
-                return $prefix . implode('|', $parts) . $suffix;
+                return $prefix . $inner . $suffix;
             }
 
             if (!empty($matches[1])) {
