@@ -1,12 +1,17 @@
 # CHANGELOG
 
-Unreleased
-* Index links, media, and nested template dependencies using the same processed content as rendering, with recursion protection.
-* Preserve case-sensitive parameters and legacy substitutions inside code and nowiki when including templates.
-* Keep literal `<noinclude>` and `<includeonly>` examples intact inside protected blocks.
-* Preserve literal DokuWiki email-link targets with or without `mailto:` during template substitution.
-* Keep fallbacks and explicit parameters working in prefixed email targets, including dotted keys.
-* Add rendered-link regression tests for email targets, labels, and internal-link placeholders.
+2026-09-30
+* Code style fixes (by bot).
+* Feat: backport YATP transclusion tags, search indexer, and namespace config.
+* Feat: Evaluate template fallbacks globally for better plugin interoperability (e.g., WRAP).
+* Feat: Add Move plugin support and metadata indexing.
+* Fix: Prevent regex from corrupting email links by disallowing dots in variable names.
+* Feat: Add support for ODT export plugin.
+
+2026-09-24
+* Add workflow: DokuWiki Default Tasks and PHP Tests.
+* Fix: PHPUnit deprecations and empty parameter parsing.
+* Feat: implement variable fallback values in templates and DEFAULT_STR bugfix.
 
 2026-06-13
 * Included Slovak translation. (by Wizzard \<wizzardsk@gmail.com>).
